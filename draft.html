@@ -449,7 +449,7 @@
         : '';
       return `<button class="group-btn ${taken?'taken':''}" ${disabled?'disabled':''} style="${style}" onclick="pickGroup('${g.id}')">
         <div class="group-btn-id">${g.id}조</div>
-        <div class="group-btn-teams">${g.teams.slice(0,2).join(' · ')}</div>
+        <div class="group-btn-teams">${g.teams.slice(0,2).join(' · ')}<br/>${g.teams.slice(2,4).join(' · ')}</div>
         ${takenLabel}
       </button>`;
     }).join('');
