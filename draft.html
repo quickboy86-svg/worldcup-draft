@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>2026 월드컵 조 드래프트</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Poppins:wght@400;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --navy:#07142b; --gold:#f0c040; --white:#f5f5f0; --muted:#8ba09a; --card:#0e2a3a;
+      --c0:#FF5252; --c1:#00BCD4; --c2:#FFD54F; --c3:#AB47BC;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--navy);color:var(--white);font-family:'Poppins','Noto Sans KR',sans-serif;min-height:100vh;}
+    header{background:linear-gradient(160deg,#0a3d1f,var(--navy));border-bottom:2px solid var(--gold);padding:32px 20px;text-align:center;}
+    h1{font-family:'Outfit',sans-serif;font-size:2rem;font-weight:700;}
+    h1 span{color:var(--gold);}
+    .phase{max-width:780px;margin:40px auto;padding:0 20px 80px;display:none;}
+    .phase.active{display:block;}
+    .phase-title{font-family:'Outfit',sans-serif;font-size:1.5rem;font-weight:700;margin-bottom:24px;color:var(--gold);}
+
+    /* ── Phase 1: 이름 입력 ── */
+    .name-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:32px;}
+    .name-input-wrap{background:var(--card);border:1px solid rgba(240,192,64,0.2);border-radius:12px;padding:20px;}
+    .name-label{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;color:var(--muted);margin-bottom:8px;display:block;}
+    .name-label span{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+    .name-label .c0{background:var(--c0);} .name-label .c1{background:var(--c1);}
+    .name-label .c2{background:var(--c2);} .name-label .c3{background:var(--c3);}
+    .name-input{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 14px;color:var(--white);font-family:'Poppins',sans-serif;font-size:1rem;outline:none;}
+    .name-input:focus{border-color:var(--gold);}
+
+    /* ── 공통 버튼 ── */
+    .btn{display:inline-block;padding:13px 32px;background:var(--gold);color:#07142b;border:none;border-radius:10px;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:opacity .2s;}
+    .btn:hover{opacity:.85;}
+    .btn-outline{background:transparent;color:var(--gold);border:2px solid var(--gold);}
+    .btn:disabled{opacity:.3;cursor:not-allowed;}
+    .btn-row{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}
+
+    /* ── Phase 2: 사다리타기 ── */
+    .ladder-wrap{background:var(--card);border:1px solid rgba(240,192,64,0.2);border-radius:16px;padding:24px;margin-bottom:24px;}
+    #ladder-canvas{width:100%;display:block;border-radius:8px;}
+    .ladder-result{display:none;margin-top:20px;}
+    .order-list{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+    .order-item{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.2);border-radius:10px;padding:14px 10px;text-align:center;}
+    .order-num{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--muted);margin-bottom:4px;}
+    .order-name{font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;}
+
+    /* ── Phase 3: 드래프트 ── */
+    .pick-sequence{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:28px;padding:16px;background:var(--card);border-radius:12px;border:1px solid rgba(240,192,64,0.15);}
+    .pick-chip{font-size:0.72rem;padding:4px 10px;border-radius:10px;font-family:'IBM Plex Mono',monospace;font-weight:700;opacity:.4;transition:all .3s;}
+    .pick-chip.done{opacity:.25;text-decoration:line-through;}
+    .pick-chip.current{opacity:1;transform:scale(1.1);box-shadow:0 0 10px rgba(0,0,0,0.4);}
+
+    .draft-main{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;}
+    .current-turn{background:var(--card);border:2px solid;border-radius:16px;padding:20px;text-align:center;}
+    .turn-label{font-size:0.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-bottom:8px;}
+    .turn-name{font-family:'Outfit',sans-serif;font-size:1.8rem;font-weight:700;}
+    .turn-pick{font-size:0.8rem;color:var(--muted);margin-top:6px;}
+
+    .selections-wrap{background:var(--card);border:1px solid rgba(240,192,64,0.15);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;}
+    .sel-row{display:flex;align-items:center;gap:8px;}
+    .sel-name{font-size:0.85rem;font-weight:600;min-width:60px;font-family:'Outfit',sans-serif;}
+    .sel-groups{display:flex;gap:6px;flex-wrap:wrap;}
+    .sel-group-badge{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;padding:3px 10px;border-radius:10px;font-weight:700;color:#07142b;}
+    .sel-empty{width:32px;height:24px;background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.15);border-radius:6px;}
+
+    .groups-label{font-family:'Outfit',sans-serif;font-size:0.85rem;font-weight:700;color:var(--gold);margin-bottom:12px;}
+    .groups-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .group-btn{background:var(--card);border:1px solid rgba(240,192,64,0.2);border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;transition:all .2s;}
+    .group-btn:hover:not(:disabled){border-color:var(--gold);background:rgba(240,192,64,0.1);}
+    .group-btn:disabled{cursor:not-allowed;opacity:.4;}
+    .group-btn.taken{opacity:1 !important;cursor:not-allowed;}
+    .group-btn-id{font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:var(--gold);}
+    .group-btn-teams{font-size:0.6rem;color:var(--muted);margin-top:4px;line-height:1.4;}
+
+    /* ── Phase 4: 완료 ── */
+    .complete-card{background:var(--card);border:2px solid var(--gold);border-radius:16px;padding:32px;text-align:center;}
+    .complete-title{font-family:'Outfit',sans-serif;font-size:2rem;font-weight:700;color:var(--gold);margin-bottom:16px;}
+    .final-list{display:flex;flex-direction:column;gap:12px;margin:24px 0;text-align:left;}
+    .final-row{display:flex;align-items:center;gap:10px;}
+    .final-name{font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;min-width:80px;}
+    .final-badges{display:flex;gap:6px;flex-wrap:wrap;}
+    .final-badge{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;padding:4px 12px;border-radius:10px;font-weight:700;color:#07142b;}
+
+    @media(max-width:600px){
+      .name-grid{grid-template-columns:1fr;}
+      .draft-main{grid-template-columns:1fr;}
+      .groups-grid{grid-template-columns:repeat(3,1fr);}
+      .order-list{grid-template-columns:repeat(2,1fr);}
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>2026 FIFA 월드컵<br/><span>조 드래프트</span></h1>
+</header>
+
+<!-- Phase 1: 이름 입력 -->
+<div id="phase1" class="phase active">
+  <div class="phase-title">① 참가자 이름 입력</div>
+  <div class="name-grid">
+    <div class="name-input-wrap">
+      <label class="name-label"><span class="c0"></span>참가자 1</label>
+      <input class="name-input" id="n0" type="text" placeholder="이름 입력"/>
+    </div>
+    <div class="name-input-wrap">
+      <label class="name-label"><span class="c1"></span>참가자 2</label>
+      <input class="name-input" id="n1" type="text" placeholder="이름 입력"/>
+    </div>
+    <div class="name-input-wrap">
+      <label class="name-label"><span class="c2"></span>참가자 3</label>
+      <input class="name-input" id="n2" type="text" placeholder="이름 입력"/>
+    </div>
+    <div class="name-input-wrap">
+      <label class="name-label"><span class="c3"></span>참가자 4</label>
+      <input class="name-input" id="n3" type="text" placeholder="이름 입력"/>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn" onclick="startLadder()">사다리타기 시작 →</button>
+  </div>
+</div>
+
+<!-- Phase 2: 사다리타기 -->
+<div id="phase2" class="phase">
+  <div class="phase-title">② 사다리타기 — 드래프트 순서 결정</div>
+  <div class="ladder-wrap">
+    <canvas id="ladder-canvas" height="480"></canvas>
+  </div>
+  <div class="btn-row">
+    <button class="btn" id="reveal-btn" onclick="revealLadder()">🎲 경로 공개!</button>
+  </div>
+  <div class="ladder-result" id="ladder-result">
+    <p style="text-align:center;color:var(--muted);font-size:0.85rem;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;">드래프트 순서 확정</p>
+    <div class="order-list" id="order-list"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="startDraft()">드래프트 시작 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Phase 3: 드래프트 -->
+<div id="phase3" class="phase">
+  <div class="phase-title">③ 조 드래프트</div>
+
+  <div class="pick-sequence" id="pick-sequence"></div>
+
+  <div class="draft-main">
+    <div class="current-turn" id="current-turn-card">
+      <div class="turn-label">현재 차례</div>
+      <div class="turn-name" id="turn-name">-</div>
+      <div class="turn-pick" id="turn-pick"></div>
+    </div>
+    <div class="selections-wrap" id="selections-wrap"></div>
+  </div>
+
+  <div class="groups-label">📌 조 선택</div>
+  <div class="groups-grid" id="groups-grid"></div>
+</div>
+
+<!-- Phase 4: 완료 -->
+<div id="phase4" class="phase">
+  <div class="complete-card">
+    <div class="complete-title">🏆 드래프트 완료!</div>
+    <p style="color:var(--muted);font-size:0.9rem;">각 참가자의 선택 결과입니다.</p>
+    <div class="final-list" id="final-list"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="goToResult()">결과 페이지로 →</button>
+      <button class="btn btn-outline" onclick="restartDraft()">다시 하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLORS = ['var(--c0)','var(--c1)','var(--c2)','var(--c3)'];
+  const COLOR_HEX = ['#FF5252','#00BCD4','#FFD54F','#AB47BC'];
+
+  // 스네이크 드래프트 순서 (0-indexed, 4명 × 3픽 = 12픽)
+  // 1→2→3→4→4→3→2→1→1→2→3→4
+  const SNAKE = [0,1,2,3,3,2,1,0,0,1,2,3];
+
+  const GROUPS = [
+    {id:'A',teams:['멕시코','남아프리카','대한민국','체코']},
+    {id:'B',teams:['캐나다','보스니아 헤르체고비나','카타르','스위스']},
+    {id:'C',teams:['브라질','모로코','아이티','스코틀랜드']},
+    {id:'D',teams:['미국','파라과이','호주','터키']},
+    {id:'E',teams:['독일','큐라소','코트디부아르','에콰도르']},
+    {id:'F',teams:['네덜란드','일본','스웨덴','튀니지']},
+    {id:'G',teams:['벨기에','이집트','이란','뉴질랜드']},
+    {id:'H',teams:['스페인','카보베르데','사우디아라비아','우루과이']},
+    {id:'I',teams:['프랑스','세네갈','이라크','노르웨이']},
+    {id:'J',teams:['아르헨티나','알제리','오스트리아','요르단']},
+    {id:'K',teams:['포르투갈','콩고민주공화국','우즈베키스탄','콜롬비아']},
+    {id:'L',teams:['잉글랜드','크로아티아','가나','파나마']},
+  ];
+
+  let names = [];
+  let ladderRungs = [];
+  let finalOrder = []; // finalOrder[slotIndex 0~3] = nameIndex → 1번 슬롯이 누구인지
+  let pickIndex = 0;
+  let selections = {}; // {nameIndex: [groupIds]}
+
+  /* ============================================================
+     Phase 1 → Phase 2
+  ============================================================ */
+  function showPhase(n) {
+    document.querySelectorAll('.phase').forEach(p=>p.classList.remove('active'));
+    document.getElementById('phase'+n).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function startLadder() {
+    names = [0,1,2,3].map(i=>document.getElementById('n'+i).value.trim());
+    if (names.some(n=>!n)) { alert('이름을 모두 입력해주세요!'); return; }
+    showPhase(2);
+    buildLadder();
+    drawLadder();
+  }
+
+  /* ============================================================
+     사다리 생성 & 그리기
+  ============================================================ */
+  const ROWS = 18;
+
+  function buildLadder() {
+    ladderRungs = [];
+    for (let row = 0; row < ROWS; row++) {
+      let col = 0;
+      while (col < 3) {
+        if (Math.random() > 0.45) {
+          ladderRungs.push({row, col});
+          col += 2;
+        } else {
+          col++;
+        }
+      }
+    }
+  }
+
+  function getPath(startCol) {
+    let col = startCol;
+    const pts = [{row:0, col}];
+    for (let row = 0; row < ROWS; row++) {
+      const goRight = ladderRungs.find(r=>r.row===row && r.col===col);
+      const goLeft  = ladderRungs.find(r=>r.row===row && r.col===col-1);
+      if (goRight)     col++;
+      else if (goLeft) col--;
+      pts.push({row:row+1, col});
+    }
+    return {pts, endCol:col};
+  }
+
+  function canvasCoord(row, col, cw) {
+    const PAD = 50, colGap = (cw - PAD*2) / 3;
+    const rowH = 440 / (ROWS + 1);
+    return {
+      x: PAD + col * colGap,
+      y: 36 + row * rowH
+    };
+  }
+
+  function drawLadder(revealedPaths) {
+    const canvas = document.getElementById('ladder-canvas');
+    const cw = canvas.offsetWidth || 700;
+    canvas.width  = cw;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,cw,480);
+
+    const PAD = 50, colGap = (cw - PAD*2)/3;
+    const rowH = 440/(ROWS+1);
+
+    // 이름 (상단)
+    names.forEach((name, i) => {
+      const x = PAD + i*colGap;
+      ctx.fillStyle = COLOR_HEX[i];
+      ctx.font = 'bold 14px Outfit, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(name, x, 22);
+    });
+
+    // 세로선
+    for (let i=0;i<4;i++) {
+      const x = PAD + i*colGap;
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, 30);
+      ctx.lineTo(x, 30 + (ROWS+1)*rowH);
+      ctx.stroke();
+    }
+
+    // 가로막대
+    ladderRungs.forEach(r => {
+      const p1 = canvasCoord(r.row+1, r.col, cw);
+      const p2 = canvasCoord(r.row+1, r.col+1, cw);
+      ctx.strokeStyle = 'rgba(240,192,64,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    });
+
+    // 번호 (하단)
+    for (let i=0;i<4;i++) {
+      const x = PAD + i*colGap;
+      const y = 30 + (ROWS+1)*rowH + 18;
+      ctx.fillStyle = 'rgba(240,192,64,0.7)';
+      ctx.font = 'bold 13px IBM Plex Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${i+1}번`, x, y);
+    }
+
+    // 경로 그리기 (공개된 것만)
+    if (revealedPaths) {
+      revealedPaths.forEach((path, nameIdx) => {
+        const pts = path.pts;
+        ctx.strokeStyle = COLOR_HEX[nameIdx];
+        ctx.lineWidth = 4;
+        ctx.shadowColor = COLOR_HEX[nameIdx];
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        pts.forEach((pt,i)=>{
+          const {x,y} = canvasCoord(pt.row, pt.col, cw);
+          i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        });
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      });
+    }
+  }
+
+  let revealed = false;
+  function revealLadder() {
+    if (revealed) return;
+    revealed = true;
+    document.getElementById('reveal-btn').disabled = true;
+    document.getElementById('reveal-btn').textContent = '공개 완료!';
+
+    const paths = [0,1,2,3].map(i => getPath(i));
+
+    // 순서 결정: paths[nameIdx].endCol = slot(0~3)
+    // finalOrder[slot] = nameIndex
+    finalOrder = new Array(4);
+    paths.forEach((p,nameIdx) => { finalOrder[p.endCol] = nameIdx; });
+
+    // 애니메이션: 하나씩 경로 그리기
+    let step = 0;
+    const drawn = [];
+    function animStep() {
+      if (step >= 4) {
+        // 결과 표시
+        showLadderResult();
+        return;
+      }
+      drawn.push(paths[step]);
+      drawLadder(drawn);
+      step++;
+      setTimeout(animStep, 600);
+    }
+    animStep();
+  }
+
+  function showLadderResult() {
+    const el = document.getElementById('ladder-result');
+    el.style.display = 'block';
+    const list = document.getElementById('order-list');
+    list.innerHTML = [0,1,2,3].map(slot=>{
+      const ni = finalOrder[slot];
+      return `<div class="order-item">
+        <div class="order-num">${slot+1}번 순서</div>
+        <div class="order-name" style="color:${COLOR_HEX[ni]}">${names[ni]}</div>
+      </div>`;
+    }).join('');
+  }
+
+  /* ============================================================
+     Phase 3: 드래프트
+  ============================================================ */
+  function startDraft() {
+    pickIndex = 0;
+    selections = {};
+    [0,1,2,3].forEach(i=>{ selections[i] = []; });
+    showPhase(3);
+    renderPickSequence();
+    renderGroupsGrid();
+    renderSelections();
+    updateCurrentTurn();
+  }
+
+  function currentNameIndex() {
+    return finalOrder[SNAKE[pickIndex]];
+  }
+
+  function renderPickSequence() {
+    const el = document.getElementById('pick-sequence');
+    el.innerHTML = SNAKE.map((slot,i)=>{
+      const ni = finalOrder[slot];
+      const cls = i < pickIndex ? 'done' : i === pickIndex ? 'current' : '';
+      return `<span class="pick-chip ${cls}" id="chip${i}" style="background:${COLOR_HEX[ni]};color:#07142b">${names[ni]}</span>`;
+    }).join('');
+  }
+
+  function updateCurrentTurn() {
+    if (pickIndex >= 12) { finishDraft(); return; }
+    const ni = currentNameIndex();
+    const card = document.getElementById('current-turn-card');
+    card.style.borderColor = COLOR_HEX[ni];
+    document.getElementById('turn-name').style.color = COLOR_HEX[ni];
+    document.getElementById('turn-name').textContent = names[ni];
+    const round = Math.floor(pickIndex/4)+1;
+    const pickNum = selections[ni].length + 1;
+    document.getElementById('turn-pick').textContent = `${round}라운드 · ${pickNum}번째 조 선택`;
+    renderPickSequence();
+    renderSelections();
+    renderGroupsGrid();
+  }
+
+  function renderSelections() {
+    const el = document.getElementById('selections-wrap');
+    el.innerHTML = [0,1,2,3].map(ni=>{
+      const badges = selections[ni].map(gid=>
+        `<span class="sel-group-badge" style="background:${COLOR_HEX[ni]}">${gid}조</span>`
+      ).join('');
+      const empties = Array(3-selections[ni].length).fill(0).map(()=>`<span class="sel-empty"></span>`).join('');
+      return `<div class="sel-row">
+        <div class="sel-name" style="color:${COLOR_HEX[ni]}">${names[ni]}</div>
+        <div class="sel-groups">${badges}${empties}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderGroupsGrid() {
+    const el = document.getElementById('groups-grid');
+    const takenMap = {}; // groupId → nameIndex
+    [0,1,2,3].forEach(ni=>{
+      selections[ni].forEach(gid=>{ takenMap[gid]=ni; });
+    });
+    el.innerHTML = GROUPS.map(g=>{
+      const taken = takenMap[g.id] !== undefined;
+      const ni = takenMap[g.id];
+      const disabled = taken || pickIndex >= 12;
+      const style = taken
+        ? `background:${COLOR_HEX[ni]}22;border-color:${COLOR_HEX[ni]}80;`
+        : '';
+      const takenLabel = taken
+        ? `<div style="font-size:0.62rem;color:${COLOR_HEX[ni]};margin-top:2px;font-family:'IBM Plex Mono',monospace;font-weight:700;">${names[ni]}</div>`
+        : '';
+      return `<button class="group-btn ${taken?'taken':''}" ${disabled?'disabled':''} style="${style}" onclick="pickGroup('${g.id}')">
+        <div class="group-btn-id">${g.id}조</div>
+        <div class="group-btn-teams">${g.teams.slice(0,2).join(' · ')}</div>
+        ${takenLabel}
+      </button>`;
+    }).join('');
+  }
+
+  function pickGroup(gid) {
+    if (pickIndex >= 12) return;
+    const ni = currentNameIndex();
+    selections[ni].push(gid);
+    pickIndex++;
+    updateCurrentTurn();
+  }
+
+  /* ============================================================
+     Phase 4: 완료
+  ============================================================ */
+  function finishDraft() {
+    showPhase(4);
+    const list = document.getElementById('final-list');
+    list.innerHTML = [0,1,2,3].map(ni=>`
+      <div class="final-row">
+        <div class="final-name" style="color:${COLOR_HEX[ni]}">${names[ni]}</div>
+        <div class="final-badges">
+          ${selections[ni].map(gid=>`<span class="final-badge" style="background:${COLOR_HEX[ni]}">${gid}조</span>`).join('')}
+        </div>
+      </div>`).join('');
+
+    // localStorage에 저장
+    const data = {
+      participants: [0,1,2,3].map(ni=>({
+        name: names[ni],
+        groups: selections[ni],
+        colorIdx: ni
+      }))
+    };
+    localStorage.setItem('wc2026_draft', JSON.stringify(data));
+  }
+
+  function goToResult() {
+    window.location.href = 'result.html';
+  }
+
+  function restartDraft() {
+    revealed = false;
+    pickIndex = 0;
+    document.getElementById('reveal-btn').disabled = false;
+    document.getElementById('reveal-btn').textContent = '🎲 경로 공개!';
+    document.getElementById('ladder-result').style.display = 'none';
+    showPhase(1);
+  }
+</script>
+</body>
+</html>
