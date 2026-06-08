@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>2026 월드컵 조 드래프트</title>
+  <style>
+    body { background: #07142b; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #f0c040; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  </style>
+</head>
+<body>
+  <div class="dot"></div>
+  <script>
+    const saved = localStorage.getItem('wc2026_draft');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.participants && data.participants.length) {
+          window.location.replace('result.html');
+        } else {
+          window.location.replace('draft.html');
+        }
+      } catch(e) {
+        window.location.replace('draft.html');
+      }
+    } else {
+      window.location.replace('draft.html');
+    }
+  </script>
+</body>
+</html>
