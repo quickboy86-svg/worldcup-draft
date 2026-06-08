@@ -531,18 +531,6 @@
     async function loadData() {
       if (refreshTimer) clearTimeout(refreshTimer);
 
-      // 6/12 04:00 KST 이전이면 더미 유지
-      if (!isAfterKickoff()) {
-        const diff  = WC_START_KST - new Date();
-        const days  = Math.floor(diff / 86400000);
-        const hours = Math.floor((diff % 86400000) / 3600000);
-        const mins  = Math.floor((diff % 3600000) / 60000);
-        setStatusBar('dummy', `⏳ 개막까지 ${days}일 ${hours}시간 ${mins}분 · 더미 데이터`);
-        // 1분마다 카운트다운 갱신, 개막 시간 되면 자동 전환
-        refreshTimer = setTimeout(loadData, 60 * 1000);
-        return;
-      }
-
       // ── API 호출 ──
       try {
         setStatusBar('loading', '데이터 불러오는 중…');
