@@ -99,13 +99,32 @@
 
     footer { text-align: center; padding: 24px; font-size: 0.75rem; color: var(--muted); border-top: 1px solid rgba(255,255,255,0.07); }
     @media (max-width: 640px) { .matches-grid { grid-template-columns: 1fr; } }
+
+    /* 초기화 모달 */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--card); border: 2px solid var(--gold); border-radius: 16px; padding: 32px 28px; width: 320px; text-align: center; }
+    .modal-title { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+    .modal-desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
+    .modal-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 10px 14px; color: var(--white); font-size: 1.1rem; letter-spacing: 0.2em; text-align: center; outline: none; font-family: 'IBM Plex Mono', monospace; }
+    .modal-input:focus { border-color: var(--gold); }
+    .modal-input.error { border-color: #FF5252; animation: shake .3s; }
+    .modal-error { color: #FF5252; font-size: 0.78rem; margin-top: 8px; min-height: 18px; font-family: 'IBM Plex Mono', monospace; }
+    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+    .modal-btn.confirm { background: #FF5252; color: #fff; }
+    .modal-btn.confirm:hover { opacity: .85; }
+    .modal-btn.cancel { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.15); }
+    .modal-btn.cancel:hover { border-color: var(--muted); }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
   </style>
 </head>
 <body>
   <header>
     <h1>2026 FIFA 월드컵<br/><span>일정 & 조 예측 게임</span></h1>
-    <div style="margin-top:16px;">
+    <div style="margin-top:16px;display:flex;align-items:center;justify-content:center;gap:20px;">
       <a href="draft.html" style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:var(--gold);opacity:.7;text-decoration:none;">← 드래프트 다시하기</a>
+      <button onclick="openResetModal()" style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;background:transparent;border:1px solid rgba(255,82,82,0.4);color:#FF5252;border-radius:8px;padding:5px 14px;cursor:pointer;opacity:.7;">초기화</button>
     </div>
   </header>
   <div class="status-bar">
@@ -132,6 +151,20 @@
       <div class="participants-grid" id="participants-grid"></div>
     </section>
   </main>
+
+  <!-- 초기화 모달 -->
+  <div class="modal-overlay" id="reset-modal" onclick="handleOverlayClick(event)">
+    <div class="modal-box">
+      <div class="modal-title">드래프트 초기화</div>
+      <div class="modal-desc">초기화하면 모든 드래프트 결과가 삭제됩니다.<br/>비밀번호를 입력하세요.</div>
+      <input class="modal-input" id="reset-pw" type="password" maxlength="10" placeholder="••••" onkeydown="handlePwKey(event)"/>
+      <div class="modal-error" id="reset-error"></div>
+      <div class="modal-btns">
+        <button class="modal-btn cancel" onclick="closeResetModal()">취소</button>
+        <button class="modal-btn confirm" onclick="confirmReset()">초기화</button>
+      </div>
+    </div>
+  </div>
 
   <footer>2026 FIFA 월드컵 · 조 예측 게임 · 친구들과 함께 ⚽</footer>
 
@@ -641,6 +674,43 @@
         </div>`;
       }).join('');
       document.getElementById('participants-grid').innerHTML = html;
+    }
+
+    function openResetModal() {
+      document.getElementById('reset-pw').value = '';
+      document.getElementById('reset-error').textContent = '';
+      document.getElementById('reset-pw').classList.remove('error');
+      document.getElementById('reset-modal').classList.add('open');
+      setTimeout(() => document.getElementById('reset-pw').focus(), 50);
+    }
+
+    function closeResetModal() {
+      document.getElementById('reset-modal').classList.remove('open');
+    }
+
+    function handleOverlayClick(e) {
+      if (e.target === document.getElementById('reset-modal')) closeResetModal();
+    }
+
+    function handlePwKey(e) {
+      if (e.key === 'Enter') confirmReset();
+      if (e.key === 'Escape') closeResetModal();
+    }
+
+    function confirmReset() {
+      const pw = document.getElementById('reset-pw').value;
+      const input = document.getElementById('reset-pw');
+      const errEl = document.getElementById('reset-error');
+      if (pw !== '7967') {
+        errEl.textContent = '비밀번호가 올바르지 않습니다.';
+        input.classList.add('error');
+        input.value = '';
+        setTimeout(() => input.classList.remove('error'), 400);
+        return;
+      }
+      localStorage.removeItem('wc2026_draft');
+      closeResetModal();
+      window.location.href = 'draft.html';
     }
 
     document.addEventListener('DOMContentLoaded', () => {
