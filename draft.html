@@ -37,17 +37,25 @@
     .btn-row{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}
 
     /* ── Phase 2: 사다리타기 ── */
-    .ladder-wrap{background:var(--card);border:1px solid rgba(240,192,64,0.2);border-radius:16px;padding:24px;margin-bottom:24px;position:relative;}
-    #ladder-canvas{width:100%;display:block;border-radius:8px;}
-    .reveal-card{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.85);opacity:0;transition:opacity .25s,transform .25s;background:rgba(7,20,43,0.96);border:2px solid;border-radius:20px;padding:28px 40px;text-align:center;z-index:10;pointer-events:none;min-width:180px;}
-    .reveal-card.show{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
-    .reveal-slot-label{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:var(--muted);margin-bottom:10px;letter-spacing:0.12em;}
-    .reveal-name-big{font-family:'Outfit',sans-serif;font-size:2.4rem;font-weight:700;margin-bottom:20px;}
+    .ladder-wrap{background:transparent;border-radius:16px;margin-bottom:12px;}
+    #ladder-canvas{width:100%;display:block;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);}
+    .reveal-chips{display:flex;justify-content:center;gap:8px;margin:14px 0 6px;flex-wrap:wrap;}
+    .reveal-chip{padding:6px 14px;border-radius:8px;font-family:'IBM Plex Mono',monospace;font-size:.75rem;font-weight:700;border:1.5px solid;transition:all .3s;}
+    .reveal-chip.current{animation:chipPulse 1s infinite;}
+    .reveal-action{min-height:60px;display:flex;align-items:center;justify-content:center;margin:8px 0;}
+    .reveal-anim-text{font-family:'IBM Plex Mono',monospace;font-size:.82rem;letter-spacing:.08em;padding:14px 0;}
+    .reveal-result-grid{display:none;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;}
+    .reveal-result-card{background:rgba(255,255,255,0.03);border:2px solid;border-radius:14px;padding:18px 8px;text-align:center;transform:scale(0.4);opacity:0;transition:transform .4s cubic-bezier(.34,1.56,.64,1),opacity .25s;}
+    .reveal-result-card.pop{transform:scale(1);opacity:1;}
+    .rrc-slot{font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:rgba(255,255,255,.4);margin-bottom:10px;}
+    .rrc-dot{width:38px;height:38px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-size:.9rem;font-weight:700;color:#07142b;}
+    .rrc-name{font-family:'Outfit',sans-serif;font-size:1.05rem;font-weight:700;}
     .ladder-result{display:none;margin-top:20px;}
     .order-list{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
     .order-item{background:rgba(240,192,64,0.08);border:1px solid rgba(240,192,64,0.2);border-radius:10px;padding:14px 10px;text-align:center;}
     .order-num{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--muted);margin-bottom:4px;}
     .order-name{font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;}
+    @keyframes chipPulse{0%,100%{opacity:1}50%{opacity:.45}}
 
     /* ── Phase 3: 드래프트 ── */
     .pick-sequence{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:28px;padding:16px;background:var(--card);border-radius:12px;border:1px solid rgba(240,192,64,0.15);}
@@ -129,16 +137,11 @@
 <div id="phase2" class="phase">
   <div class="phase-title">② 사다리타기 — 드래프트 순서 결정</div>
   <div class="ladder-wrap">
-    <canvas id="ladder-canvas" height="480"></canvas>
-    <div class="reveal-card" id="reveal-card">
-      <div class="reveal-slot-label" id="reveal-slot-text"></div>
-      <div class="reveal-name-big" id="reveal-name-text"></div>
-      <button class="btn" id="next-reveal-btn" onclick="nextReveal()">다음 →</button>
-    </div>
+    <canvas id="ladder-canvas"></canvas>
   </div>
-  <div class="btn-row">
-    <button class="btn" id="reveal-btn" onclick="revealLadder()">🎲 경로 공개!</button>
-  </div>
+  <div id="reveal-chips" class="reveal-chips"></div>
+  <div class="reveal-action" id="reveal-action"></div>
+  <div class="reveal-result-grid" id="reveal-result-grid"></div>
   <div class="ladder-result" id="ladder-result">
     <p style="text-align:center;color:var(--muted);font-size:0.85rem;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;">드래프트 순서 확정</p>
     <div class="order-list" id="order-list"></div>
@@ -221,9 +224,13 @@
   function startLadder() {
     names = [0,1,2,3].map(i=>document.getElementById('n'+i).value.trim());
     if (names.some(n=>!n)) { alert('이름을 모두 입력해주세요!'); return; }
-    showPhase(2);
     buildLadder();
-    drawLadder();
+    allSegs = [0,1,2,3].map(i => calcSegments(i).segs);
+    endCols = [0,1,2,3].map(i => calcSegments(i).endCol);
+    ldrState = { completedCount: 0, currentNi: null };
+    ldrTrail = [[],[],[],[]];
+    showPhase(2);
+    setTimeout(() => { syncCanvas(); drawScene(); updateRevealUI(); }, 50);
   }
 
   /* ============================================================
@@ -246,204 +253,255 @@
     }
   }
 
-  function getPath(startCol) {
+  /* ── 새 사다리 시스템 ── */
+  const ANIM_MS = 3000;
+  let allSegs = [], endCols = [];
+  let ldrState = { completedCount: 0, currentNi: null };
+  let ldrTrail = [[],[],[],[]];
+  let ldrAnimRef = null;
+
+  function syncCanvas() {
+    const c = document.getElementById('ladder-canvas');
+    if (!c) return;
+    c.width = c.offsetWidth || 500;
+    c.height = Math.round(c.width * 1.15);
+  }
+
+  function getCoord(row, col, cw, ch) {
+    const PAD = 52, colGap = (cw - PAD*2) / 3;
+    const rowGap = (ch - 90) / (ROWS + 1);
+    return { x: PAD + col * colGap, y: 46 + row * rowGap };
+  }
+
+  function calcSegments(startCol) {
     let col = startCol;
-    const pts = [{row:0, col}];
+    const segs = [];
     for (let row = 0; row < ROWS; row++) {
-      const goRight = ladderRungs.find(r=>r.row===row && r.col===col);
-      const goLeft  = ladderRungs.find(r=>r.row===row && r.col===col-1);
-      if (goRight)     col++;
-      else if (goLeft) col--;
-      pts.push({row:row+1, col});
+      const goR = ladderRungs.find(r => r.row === row && r.col === col);
+      const goL = ladderRungs.find(r => r.row === row && r.col === col - 1);
+      if (goR || goL) {
+        segs.push({ type:'v', fromRow:row,     toRow:row+0.5, col });
+        const toCol = goR ? col+1 : col-1;
+        segs.push({ type:'h', row:row+0.5, fromCol:col, toCol });
+        col = toCol;
+        segs.push({ type:'v', fromRow:row+0.5, toRow:row+1,   col });
+      } else {
+        segs.push({ type:'v', fromRow:row, toRow:row+1, col });
+      }
     }
-    return {pts, endCol:col};
+    return { segs, endCol: col };
   }
 
-  function canvasCoord(row, col, cw) {
-    const PAD = 50, colGap = (cw - PAD*2) / 3;
-    const rowH = 440 / (ROWS + 1);
-    return {
-      x: PAD + col * colGap,
-      y: 36 + row * rowH
-    };
+  function getBallPos(segs, progress, cw, ch) {
+    const weights = segs.map(s => s.type==='v' ? (s.toRow - s.fromRow) : 0.55);
+    const total = weights.reduce((a,b) => a+b, 0);
+    const target = Math.min(progress * total, total);
+    let dist = 0;
+    for (let i = 0; i < segs.length; i++) {
+      const w = weights[i];
+      if (dist + w >= target - 0.00001) {
+        const lt = Math.max(0, Math.min((target - dist) / w, 1));
+        const s = segs[i];
+        if (s.type === 'v') {
+          const f = getCoord(s.fromRow, s.col, cw, ch), t = getCoord(s.toRow, s.col, cw, ch);
+          return { x: f.x+(t.x-f.x)*lt, y: f.y+(t.y-f.y)*lt };
+        } else {
+          const f = getCoord(s.row, s.fromCol, cw, ch), t = getCoord(s.row, s.toCol, cw, ch);
+          return { x: f.x+(t.x-f.x)*lt, y: f.y+(t.y-f.y)*lt };
+        }
+      }
+      dist += w;
+    }
+    const last = segs[segs.length-1];
+    return last.type==='v' ? getCoord(last.toRow, last.col, cw, ch)
+                           : getCoord(last.row, last.toCol, cw, ch);
   }
 
-  function drawLadder(revealedPaths) {
+  function drawScene(animProg, trail) {
     const canvas = document.getElementById('ladder-canvas');
-    const cw = canvas.offsetWidth || 700;
-    canvas.width  = cw;
-    canvas.height = 480;
+    if (!canvas) return;
+    const cw = canvas.width, ch = canvas.height;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,cw,480);
+    ctx.clearRect(0, 0, cw, ch);
 
-    const PAD = 50, colGap = (cw - PAD*2)/3;
-    const rowH = 440/(ROWS+1);
+    const { completedCount, currentNi } = ldrState;
 
-    // 이름 (상단)
-    names.forEach((name, i) => {
-      const x = PAD + i*colGap;
-      ctx.fillStyle = COLOR_HEX[i];
-      ctx.font = 'bold 14px Outfit, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(name, x, 22);
-    });
+    // 배경
+    const bg = ctx.createLinearGradient(0, 0, 0, ch);
+    bg.addColorStop(0, '#112240'); bg.addColorStop(1, '#07142b');
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(0,0,cw,ch,12) : ctx.rect(0,0,cw,ch);
+    ctx.fill();
 
     // 세로선
-    for (let i=0;i<4;i++) {
-      const x = PAD + i*colGap;
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x, 30);
-      ctx.lineTo(x, 30 + (ROWS+1)*rowH);
-      ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const {x, y:y0} = getCoord(0, i, cw, ch), {y:y1} = getCoord(ROWS+1, i, cw, ch);
+      const isCur = currentNi===i, isDone = i<completedCount;
+      const alpha = isCur ? 0.85 : isDone ? 0.5 : (currentNi!==null ? 0.13 : 0.22);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = isCur ? 3 : 2;
+      ctx.shadowBlur = isCur ? 8 : 0; ctx.shadowColor = COLOR_HEX[i];
+      ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      ctx.shadowBlur = 0;
     }
 
     // 가로막대
     ladderRungs.forEach(r => {
-      const p1 = canvasCoord(r.row+1, r.col, cw);
-      const p2 = canvasCoord(r.row+1, r.col+1, cw);
-      ctx.strokeStyle = 'rgba(240,192,64,0.4)';
-      ctx.lineWidth = 2;
+      const p1 = getCoord(r.row+0.5, r.col, cw, ch), p2 = getCoord(r.row+0.5, r.col+1, cw, ch);
+      const onCur = currentNi!==null && (currentNi===r.col || currentNi===r.col+1);
+      const alpha = currentNi!==null ? (onCur ? 0.72 : 0.12) : 0.45;
+      ctx.shadowColor = '#f0c040'; ctx.shadowBlur = onCur ? 8 : 0;
+      ctx.strokeStyle = `rgba(240,192,64,${alpha})`;
+      ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+
+    // 이름 뱃지 (상단)
+    names.forEach((name, i) => {
+      const {x} = getCoord(0, i, cw, ch), y = 18;
+      const isCur = currentNi===i, isDone = i<completedCount;
+      const alpha = isCur ? 1 : isDone ? 0.7 : (currentNi!==null ? 0.22 : 0.8);
+      ctx.globalAlpha = alpha;
+      const tw = Math.max(ctx.measureText(name).width + 20, 42);
+      ctx.fillStyle = COLOR_HEX[i]+'28'; ctx.strokeStyle = COLOR_HEX[i]+(isCur?'cc':'70');
+      ctx.lineWidth = isCur ? 2 : 1.2;
+      if (isCur) { ctx.shadowColor = COLOR_HEX[i]; ctx.shadowBlur = 14; }
       ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
+      ctx.roundRect ? ctx.roundRect(x-tw/2, y-12, tw, 24, 12) : ctx.rect(x-tw/2, y-12, tw, 24);
+      ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = COLOR_HEX[i]; ctx.font = 'bold 12px Outfit,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(name, x, y); ctx.globalAlpha = 1;
     });
 
     // 번호 (하단)
-    for (let i=0;i<4;i++) {
-      const x = PAD + i*colGap;
-      const y = 30 + (ROWS+1)*rowH + 18;
-      ctx.fillStyle = 'rgba(240,192,64,0.7)';
-      ctx.font = 'bold 13px IBM Plex Mono, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${i+1}번`, x, y);
+    for (let i = 0; i < 4; i++) {
+      const {x} = getCoord(ROWS+1, i, cw, ch);
+      ctx.fillStyle = 'rgba(240,192,64,0.55)'; ctx.font = 'bold 12px IBM Plex Mono,monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${i+1}번`, x, ch-14);
     }
 
-    // 경로 그리기 (공개된 것만)
-    if (revealedPaths) {
-      revealedPaths.forEach((path, idx) => {
-        const pts = path.pts;
-        const ni = path.colIdx !== undefined ? path.colIdx : idx;
-        ctx.strokeStyle = COLOR_HEX[ni];
-        ctx.lineWidth = 4;
-        ctx.shadowColor = COLOR_HEX[ni];
-        ctx.shadowBlur = 8;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        pts.forEach((pt,i)=>{
-          const {x,y} = canvasCoord(pt.row, pt.col, cw);
-          i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-        });
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+    // 완료된 경로 + 도착 공
+    for (let ni = 0; ni < completedCount; ni++) {
+      const segs = allSegs[ni];
+      ctx.strokeStyle = COLOR_HEX[ni]+'90'; ctx.lineWidth = 3;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+      segs.forEach((s, idx) => {
+        const f = s.type==='v' ? getCoord(s.fromRow, s.col, cw, ch) : getCoord(s.row, s.fromCol, cw, ch);
+        const t = s.type==='v' ? getCoord(s.toRow,   s.col, cw, ch) : getCoord(s.row, s.toCol,   cw, ch);
+        if (idx===0) ctx.moveTo(f.x, f.y); else ctx.lineTo(f.x, f.y);
+        ctx.lineTo(t.x, t.y);
       });
+      ctx.stroke();
+      const pos = getBallPos(segs, 1, cw, ch);
+      ctx.shadowColor = COLOR_HEX[ni]; ctx.shadowBlur = 14;
+      ctx.fillStyle = COLOR_HEX[ni]; ctx.beginPath(); ctx.arc(pos.x, pos.y, 9, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#07142b'; ctx.font = 'bold 8px Outfit,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(names[ni].charAt(0), pos.x, pos.y);
+    }
+
+    // 현재 공 + 꼬리
+    if (currentNi !== null && animProg > 0) {
+      const segs = allSegs[currentNi];
+      (trail||[]).forEach((tp, ti) => {
+        ctx.globalAlpha = (ti / trail.length) * 0.3;
+        ctx.fillStyle = COLOR_HEX[currentNi];
+        ctx.beginPath(); ctx.arc(tp.x, tp.y, 3+(ti/trail.length)*5, 0, Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      const pos = getBallPos(segs, animProg, cw, ch);
+      const glow = ctx.createRadialGradient(pos.x, pos.y, 2, pos.x, pos.y, 22);
+      glow.addColorStop(0, COLOR_HEX[currentNi]+'aa'); glow.addColorStop(1, COLOR_HEX[currentNi]+'00');
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(pos.x, pos.y, 22, 0, Math.PI*2); ctx.fill();
+      ctx.shadowColor = COLOR_HEX[currentNi]; ctx.shadowBlur = 20;
+      ctx.fillStyle = COLOR_HEX[currentNi]; ctx.beginPath(); ctx.arc(pos.x, pos.y, 12, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      const hl = ctx.createRadialGradient(pos.x-3, pos.y-3, 1, pos.x, pos.y, 12);
+      hl.addColorStop(0,'rgba(255,255,255,.6)'); hl.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = hl; ctx.beginPath(); ctx.arc(pos.x, pos.y, 12, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#07142b'; ctx.font = 'bold 9px Outfit,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(names[currentNi].charAt(0), pos.x, pos.y);
     }
   }
 
-  let revealed = false;
-  let revealState = null;
+  function revealNext() {
+    const ni = ldrState.completedCount;
+    if (ni >= 4 || ldrState.currentNi !== null) return;
+    ldrTrail[ni] = [];
+    ldrState.currentNi = ni;
+    updateRevealUI();
 
-  function revealLadder() {
-    if (revealed) return;
-    revealed = true;
-    document.getElementById('reveal-btn').style.display = 'none';
-
-    const paths = [0,1,2,3].map(i => {
-      const {pts, endCol} = getPath(i);
-      return {pts, endCol, colIdx: i};
-    });
-    finalOrder = new Array(4);
-    paths.forEach(p => { finalOrder[p.endCol] = p.colIdx; });
-
-    revealState = {paths, current: 0, completed: {}};
-    animateNextPerson();
-  }
-
-  function animateNextPerson() {
-    if (revealState.current >= 4) { showLadderResult(); return; }
-
-    const path = revealState.paths[revealState.current];
-    const pts = path.pts;
-    const ni = path.colIdx;
-    let seg = 0;
-
-    function tick() {
-      // 완성된 경로들 재렌더
-      const done = Object.entries(revealState.completed)
-        .map(([ci, p]) => ({pts: p, colIdx: Number(ci)}));
-      drawLadder(done);
-
+    let startTime = null;
+    function loop(now) {
+      if (!startTime) startTime = now;
+      const t = Math.min((now - startTime) / ANIM_MS, 1);
+      const eased = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
       const canvas = document.getElementById('ladder-canvas');
-      const cw = canvas.width;
-      const ctx = canvas.getContext('2d');
-
-      // 현재 경로 (부분)
-      if (seg > 0) {
-        ctx.strokeStyle = COLOR_HEX[ni];
-        ctx.lineWidth = 5;
-        ctx.shadowColor = COLOR_HEX[ni];
-        ctx.shadowBlur = 10;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        pts.slice(0, seg + 1).forEach(({row, col}, i) => {
-          const {x, y} = canvasCoord(row, col, cw);
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-      }
-
-      // 공 그리기
-      if (seg < pts.length) {
-        const {x, y} = canvasCoord(pts[seg].row, pts[seg].col, cw);
-        ctx.shadowColor = COLOR_HEX[ni];
-        ctx.shadowBlur = 22;
-        ctx.fillStyle = COLOR_HEX[ni];
-        ctx.beginPath();
-        ctx.arc(x, y, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      seg++;
-      if (seg > pts.length) {
-        revealState.completed[ni] = pts;
-        setTimeout(() => showRevealCard(ni, path.endCol), 150);
+      const pos = getBallPos(allSegs[ni], eased, canvas.width, canvas.height);
+      ldrTrail[ni] = [...ldrTrail[ni].slice(-14), pos];
+      drawScene(eased, ldrTrail[ni]);
+      if (t < 1) {
+        ldrAnimRef = requestAnimationFrame(loop);
       } else {
-        setTimeout(tick, 35);
+        ldrState.completedCount++;
+        ldrState.currentNi = null;
+        drawScene(1, []);
+        if (ldrState.completedCount === 4) {
+          showRevealResults();
+        } else {
+          updateRevealUI();
+        }
       }
     }
-    tick();
+    ldrAnimRef = requestAnimationFrame(loop);
   }
 
-  function showRevealCard(ni, endCol) {
-    const isLast = revealState.current >= 3;
-    const card = document.getElementById('reveal-card');
-    document.getElementById('reveal-slot-text').textContent = `${endCol + 1}번 순서`;
-    document.getElementById('reveal-name-text').textContent = names[ni];
-    document.getElementById('reveal-name-text').style.color = COLOR_HEX[ni];
-    document.getElementById('next-reveal-btn').textContent = isLast ? '결과 보기 →' : '다음 →';
-    card.style.borderColor = COLOR_HEX[ni];
-    card.style.display = 'block';
-    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('show')));
+  function updateRevealUI() {
+    // 진행 칩
+    const chips = document.getElementById('reveal-chips');
+    if (chips) chips.innerHTML = names.map((name, i) => {
+      const isDone = i < ldrState.completedCount, isCur = ldrState.currentNi === i;
+      const icon = isDone ? ' ✓' : isCur ? ' ▶' : '';
+      return `<div class="reveal-chip ${isDone?'done':isCur?'current':''}" style="border-color:${isDone||isCur?COLOR_HEX[i]+'90':'rgba(255,255,255,0.1)'};color:${isDone||isCur?COLOR_HEX[i]:'rgba(255,255,255,0.3)'};background:${isDone||isCur?COLOR_HEX[i]+'20':'rgba(255,255,255,0.03)'}">${name}${icon}</div>`;
+    }).join('');
+
+    // 버튼/상태
+    const action = document.getElementById('reveal-action');
+    if (!action) return;
+    const ni = ldrState.completedCount;
+    if (ldrState.currentNi !== null) {
+      action.innerHTML = `<div class="reveal-anim-text" style="color:${COLOR_HEX[ldrState.currentNi]}cc">▶ ${names[ldrState.currentNi]} 이동 중…</div>`;
+    } else if (ni < 4) {
+      action.innerHTML = `<button class="btn" onclick="revealNext()" style="background:${COLOR_HEX[ni]};color:#07142b;box-shadow:0 4px 20px ${COLOR_HEX[ni]}55;font-size:1.05rem;padding:13px 36px;">🎲 ${names[ni]} 공개!</button>`;
+    }
   }
 
-  function nextReveal() {
-    const card = document.getElementById('reveal-card');
-    card.classList.remove('show');
-    setTimeout(() => {
-      card.style.display = 'none';
-      revealState.current++;
-      animateNextPerson();
-    }, 280);
+  function showRevealResults() {
+    finalOrder = new Array(4);
+    endCols.forEach((ec, ni) => { finalOrder[ec] = ni; });
+    updateRevealUI();
+
+    document.getElementById('reveal-action').innerHTML = '';
+    const grid = document.getElementById('reveal-result-grid');
+    grid.style.display = 'grid';
+    grid.innerHTML = [0,1,2,3].map(slot => {
+      const ni = finalOrder[slot];
+      return `<div class="reveal-result-card" id="rrc-${slot}" style="border-color:${COLOR_HEX[ni]}80;box-shadow:0 4px 24px ${COLOR_HEX[ni]}30;">
+        <div class="rrc-slot">${slot+1}번 순서</div>
+        <div class="rrc-dot" style="background:${COLOR_HEX[ni]};box-shadow:0 0 16px ${COLOR_HEX[ni]}88;">${names[ni].charAt(0)}</div>
+        <div class="rrc-name" style="color:${COLOR_HEX[ni]}">${names[ni]}</div>
+      </div>`;
+    }).join('');
+
+    [0,1,2,3].forEach((slot, i) => {
+      setTimeout(() => document.getElementById(`rrc-${slot}`)?.classList.add('pop'), 100 + i*180);
+    });
+    setTimeout(showLadderResult, 1000);
   }
 
   function showLadderResult() {
@@ -577,16 +635,14 @@
   }
 
   function restartDraft() {
-    revealed = false;
-    revealState = null;
+    if (ldrAnimRef) cancelAnimationFrame(ldrAnimRef);
+    ldrState = { completedCount: 0, currentNi: null };
+    ldrTrail = [[],[],[],[]];
     pickIndex = 0;
-    const btn = document.getElementById('reveal-btn');
-    btn.style.display = '';
-    btn.disabled = false;
-    btn.textContent = '🎲 경로 공개!';
-    const card = document.getElementById('reveal-card');
-    card.classList.remove('show');
-    card.style.display = 'none';
+    document.getElementById('reveal-chips').innerHTML = '';
+    document.getElementById('reveal-action').innerHTML = '';
+    const grid = document.getElementById('reveal-result-grid');
+    grid.style.display = 'none'; grid.innerHTML = '';
     document.getElementById('ladder-result').style.display = 'none';
     showPhase(1);
   }
