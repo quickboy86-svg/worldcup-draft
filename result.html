@@ -82,6 +82,7 @@
     .participant-name { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; }
     .participant-alive-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); }
     .participant-alive-count span { color: #4ade80; font-weight: 700; }
+    .participant-score { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 700; color: var(--gold); background: rgba(240,192,64,0.12); border: 1px solid rgba(240,192,64,0.3); border-radius: 6px; padding: 1px 8px; margin-left: 10px; vertical-align: middle; }
 
     /* 조별 팀 목록 */
     .participant-group-section { display: flex; flex-direction: column; gap: 6px; }
@@ -378,17 +379,16 @@
     function calcSurvival(standingsData, allMatches) {
       eliminatedTeams.clear();
       advancedTeams.clear();
+      teamRoundPoints.clear();
 
       const groupStandings = standingsData.standings || [];
 
       // ── 조별리그 완료된 조 처리 ──
-      const thirdPlacers = []; // { team, points, gd, gf }
+      const thirdPlacers = [];
       groupStandings.forEach(gs => {
         const table = gs.table || [];
         if (!table.length) return;
 
-        // 해당 조 전체 경기가 끝났는지 확인
-        const groupLetter = gs.group?.replace('GROUP_', '');
         const groupMatches = allMatches.filter(
           m => m.stage === 'GROUP_STAGE' && m.group === gs.group
         );
@@ -396,17 +396,14 @@
           groupMatches.every(m => m.status === 'FINISHED');
 
         if (allFinished) {
-          // 1위·2위 진출 확정
-          if (table[0]) advancedTeams.add(table[0].team.name);
-          if (table[1]) advancedTeams.add(table[1].team.name);
-          // 3위 후보
+          if (table[0]) { advancedTeams.add(table[0].team.name); addPoints(table[0].team.name, 1); }
+          if (table[1]) { advancedTeams.add(table[1].team.name); addPoints(table[1].team.name, 1); }
           if (table[2]) thirdPlacers.push({
             name: table[2].team.name,
             points: table[2].points,
             gd: table[2].goalDifference,
             gf: table[2].goalsFor
           });
-          // 4위 탈락
           if (table[3]) eliminatedTeams.add(table[3].team.name);
         }
       });
@@ -416,11 +413,13 @@
         thirdPlacers.sort((a,b) =>
           b.points - a.points || b.gd - a.gd || b.gf - a.gf
         );
-        thirdPlacers.slice(0, 8).forEach(t => advancedTeams.add(t.name));
+        thirdPlacers.slice(0, 8).forEach(t => { advancedTeams.add(t.name); addPoints(t.name, 1); });
         thirdPlacers.slice(8).forEach(t => eliminatedTeams.add(t.name));
       }
 
-      // ── 토너먼트 단계 처리 ──
+      // ── 토너먼트 단계 처리 (단계별 진출 점수) ──
+      // LAST_32 통과 → 16강 진출 +2 / LAST_16 통과 → 8강 진출 +3 / QUARTER_FINALS 통과 → 4강 진출 +4
+      const KO_POINTS = { LAST_32: 2, LAST_16: 3, QUARTER_FINALS: 4 };
       const KO_STAGES = ['LAST_32','LAST_16','QUARTER_FINALS','SEMI_FINALS','FINAL'];
       KO_STAGES.forEach(stage => {
         allMatches
@@ -430,10 +429,29 @@
             const as = m.score?.fullTime?.away ?? 0;
             const homeTeam = m.homeTeam?.name;
             const awayTeam = m.awayTeam?.name;
-            if (hs > as) { eliminatedTeams.add(awayTeam); advancedTeams.add(homeTeam); }
-            if (as > hs) { eliminatedTeams.add(homeTeam); advancedTeams.add(awayTeam); }
+            const pts = KO_POINTS[stage] || 0;
+            if (hs > as) {
+              eliminatedTeams.add(awayTeam);
+              advancedTeams.add(homeTeam);
+              if (pts) addPoints(homeTeam, pts);
+            }
+            if (as > hs) {
+              eliminatedTeams.add(homeTeam);
+              advancedTeams.add(awayTeam);
+              if (pts) addPoints(awayTeam, pts);
+            }
           });
       });
+    }
+
+    function getParticipantScore(p) {
+      let score = 0;
+      p.groups.forEach(gid => {
+        const g = GROUPS.find(g => g.id === gid);
+        if (!g) return;
+        g.teams.forEach(t => { score += teamRoundPoints.get(t) || 0; });
+      });
+      return score;
     }
 
     /* ================================================================
@@ -593,8 +611,13 @@
        - 비어있으면 아직 시작 전 → 모든 팀 pending 상태
        API 연동 시 이 두 Set을 채워주면 자동으로 반영됨
     ================================================================ */
-    const eliminatedTeams = new Set(); // 탈락팀 (예: new Set(['멕시코', '브라질']))
-    const advancedTeams   = new Set(); // 진출확정팀
+    const eliminatedTeams  = new Set();
+    const advancedTeams    = new Set();
+    const teamRoundPoints  = new Map(); // teamName → 누적 점수
+
+    function addPoints(teamName, pts) {
+      teamRoundPoints.set(teamName, (teamRoundPoints.get(teamName) || 0) + pts);
+    }
 
     function getTeamStatus(teamName) {
       if (eliminatedTeams.has(teamName)) return 'eliminated';
@@ -630,15 +653,18 @@
             </div>`;
         }).join('');
 
-        // 탈락팀이 하나라도 있으면 카운트 표시
-        const showCount = eliminatedTeams.size > 0 || advancedTeams.size > 0;
-        const countHtml = showCount
+        const showStats = eliminatedTeams.size > 0 || advancedTeams.size > 0;
+        const score = getParticipantScore(p);
+        const scoreHtml = showStats
+          ? `<span class="participant-score">${score}점</span>`
+          : '';
+        const countHtml = showStats
           ? `<div class="participant-alive-count">생존 <span>${aliveCount}</span> / ${totalCount}팀</div>`
           : '';
 
         return `<div class="participant-card">
           <div class="participant-header">
-            <div class="participant-name" style="color:${COLOR_HEX[p.colorIdx ?? PARTICIPANTS.indexOf(p)]}">${p.name}</div>
+            <div class="participant-name" style="color:${COLOR_HEX[p.colorIdx ?? PARTICIPANTS.indexOf(p)]}">${p.name}${scoreHtml}</div>
             ${countHtml}
           </div>
           ${groupSections}
