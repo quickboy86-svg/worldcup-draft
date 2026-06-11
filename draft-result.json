@@ -1,0 +1,26 @@
+{
+  "participants": [
+    {
+      "name": "구자훈",
+      "groups": ["I", "C", "A"],
+      "colorIdx": 0
+    },
+    {
+      "name": "고대원",
+      "groups": ["H", "G", "F"],
+      "colorIdx": 1
+    },
+    {
+      "name": "이재민",
+      "groups": ["L", "E", "D"],
+      "colorIdx": 2
+    },
+    {
+      "name": "김영신",
+      "groups": ["J", "K", "B"],
+      "colorIdx": 3
+    }
+  ],
+  "savedAt": "2026-06-11T00:00:00+09:00",
+  "version": 1
+}
