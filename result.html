@@ -83,6 +83,10 @@
     .participant-alive-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); }
     .participant-alive-count span { color: #4ade80; font-weight: 700; }
     .participant-score { font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; font-weight: 700; color: var(--gold); background: rgba(240,192,64,0.12); border: 1px solid rgba(240,192,64,0.3); border-radius: 6px; padding: 1px 8px; margin-left: 10px; vertical-align: middle; }
+    .ko-stage { margin-bottom: 28px; }
+    .ko-stage-title { font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 700; color: var(--gold); letter-spacing: 0.06em; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
+    .ko-matches-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    @media (max-width: 640px) { .ko-matches-grid { grid-template-columns: 1fr; } }
 
     /* 조별 팀 목록 */
     .participant-group-section { display: flex; flex-direction: column; gap: 6px; }
@@ -143,7 +147,7 @@
       <div id="stage0" class="tab-panel active">
         <div class="group-grid" id="group-grid"></div>
       </div>
-      <div id="stage1" class="tab-panel" style="padding:40px;text-align:center;color:var(--muted);">토너먼트는 조별 리그 종료 후 표시됩니다.</div>
+      <div id="stage1" class="tab-panel"><div id="tournament-bracket"></div></div>
     </section>
 
     <section>
@@ -292,7 +296,115 @@
         ]
       },
     ];
-    
+
+    // 토너먼트 정적 대진표 (FIFA 공식 조 기준 A–L)
+    const KNOCKOUT_SCHEDULE = [
+      // 32강
+      {round:'LAST_32',        date:'6/29(월) 04:00', s1:'A조 2위',          s2:'B조 2위'          },
+      {round:'LAST_32',        date:'6/30(화) 02:00', s1:'C조 1위',          s2:'F조 2위'          },
+      {round:'LAST_32',        date:'6/30(화) 05:30', s1:'E조 1위',          s2:'3위(A·B·C·D·F)'  },
+      {round:'LAST_32',        date:'6/30(화) 10:00', s1:'F조 1위',          s2:'C조 2위'          },
+      {round:'LAST_32',        date:'7/1(수) 02:00',  s1:'E조 2위',          s2:'I조 2위'           },
+      {round:'LAST_32',        date:'7/1(수) 06:00',  s1:'I조 1위',          s2:'3위(C·D·F·G·H)'  },
+      {round:'LAST_32',        date:'7/1(수) 10:00',  s1:'A조 1위',          s2:'3위(C·E·F·H·I)'  },
+      {round:'LAST_32',        date:'7/2(목) 01:00',  s1:'L조 1위',          s2:'3위(E·H·I·J·K)'  },
+      {round:'LAST_32',        date:'7/2(목) 05:00',  s1:'G조 1위',          s2:'3위(A·E·H·I·J)'  },
+      {round:'LAST_32',        date:'7/2(목) 09:00',  s1:'D조 1위',          s2:'3위(B·E·F·I·J)'  },
+      {round:'LAST_32',        date:'7/3(금) 04:00',  s1:'H조 1위',          s2:'J조 2위'           },
+      {round:'LAST_32',        date:'7/3(금) 08:00',  s1:'K조 2위',          s2:'L조 2위'           },
+      {round:'LAST_32',        date:'7/3(금) 12:00',  s1:'B조 1위',          s2:'3위(E·F·G·I·J)'  },
+      {round:'LAST_32',        date:'7/4(토) 03:00',  s1:'D조 2위',          s2:'G조 2위'           },
+      {round:'LAST_32',        date:'7/4(토) 07:00',  s1:'J조 1위',          s2:'H조 2위'           },
+      {round:'LAST_32',        date:'7/4(토) 10:30',  s1:'K조 1위',          s2:'3위(D·E·I·J·L)'  },
+      // 16강
+      {round:'LAST_16',        date:'7/5(일) 02:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/5(일) 06:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/6(월) 05:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/6(월) 09:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/7(화) 04:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/7(화) 09:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/8(수) 01:00',  s1:'미정',             s2:'미정'              },
+      {round:'LAST_16',        date:'7/8(수) 05:00',  s1:'미정',             s2:'미정'              },
+      // 8강
+      {round:'QUARTER_FINALS', date:'7/10(금) 05:00', s1:'미정',             s2:'미정'              },
+      {round:'QUARTER_FINALS', date:'7/11(토) 04:00', s1:'미정',             s2:'미정'              },
+      {round:'QUARTER_FINALS', date:'7/12(일) 06:00', s1:'미정',             s2:'미정'              },
+      {round:'QUARTER_FINALS', date:'7/12(일) 10:00', s1:'미정',             s2:'미정'              },
+      // 4강
+      {round:'SEMI_FINALS',    date:'7/15(수) 04:00', s1:'미정',             s2:'미정'              },
+      {round:'SEMI_FINALS',    date:'7/16(목) 04:00', s1:'미정',             s2:'미정'              },
+      // 3·4위전
+      {round:'THIRD_PLACE',    date:'7/19(일) 06:00', s1:'미정',             s2:'미정'              },
+      // 결승
+      {round:'FINAL',          date:'7/20(월) 04:00', s1:'미정',             s2:'미정'              },
+    ];
+
+    const STAGE_LABELS = {
+      LAST_32: '⚔️ 32강', LAST_16: '⚔️ 16강', QUARTER_FINALS: '⚔️ 8강',
+      SEMI_FINALS: '⚔️ 4강', THIRD_PLACE: '🥉 3·4위전', FINAL: '🏆 결승',
+    };
+
+    let autoSwitchedToTournament = false;
+
+    function renderTournament(allMatches) {
+      const koMatches = allMatches.filter(m => m.stage !== 'GROUP_STAGE');
+      const useAPI = koMatches.length > 0;
+      const stages = ['LAST_32','LAST_16','QUARTER_FINALS','SEMI_FINALS','THIRD_PLACE','FINAL'];
+
+      const renderMatchCard = (home, away, scoreHtml, dateStr) => `
+        <div class="match-single">
+          ${dateStr ? `<div class="match-date-time">${dateStr} KST</div>` : ''}
+          <div class="match-teams">
+            <span class="team-name-sm home">${home}</span>
+            ${scoreHtml}
+            <span class="team-name-sm away">${away}</span>
+          </div>
+        </div>`;
+
+      const html = stages.map(stage => {
+        let cards = '';
+        if (useAPI) {
+          const ms = koMatches.filter(m => m.stage === stage);
+          if (!ms.length) return '';
+          cards = ms.map(m => {
+            const s = m.status;
+            const h = m.score?.fullTime?.home;
+            const a = m.score?.fullTime?.away;
+            let scoreHtml;
+            if (s === 'FINISHED') {
+              scoreHtml = `<span class="score-box">${h} - ${a}</span>`;
+            } else if (s === 'IN_PLAY' || s === 'PAUSED') {
+              const ch = m.score?.currentPeriod?.home ?? '?';
+              const ca = m.score?.currentPeriod?.away ?? '?';
+              scoreHtml = `<span class="score-box live">${ch} - ${ca} 🔴</span>`;
+            } else {
+              const kst = new Date(m.utcDate).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+              scoreHtml = `<span class="score-box">${kst} KST</span>`;
+            }
+            const home = m.homeTeam?.shortName || m.homeTeam?.name || '미정';
+            const away = m.awayTeam?.shortName || m.awayTeam?.name || '미정';
+            return renderMatchCard(home, away, scoreHtml, '');
+          }).join('');
+        } else {
+          const ms = KNOCKOUT_SCHEDULE.filter(m => m.round === stage);
+          if (!ms.length) return '';
+          cards = ms.map(m => renderMatchCard(m.s1, m.s2, '<span class="score-box">-</span>', m.date)).join('');
+        }
+        return `<div class="ko-stage">
+          <div class="ko-stage-title">${STAGE_LABELS[stage]}</div>
+          <div class="ko-matches-grid">${cards}</div>
+        </div>`;
+      }).join('');
+
+      document.getElementById('tournament-bracket').innerHTML = html;
+
+      // 토너먼트가 시작됐으면 탭 자동 전환 (최초 1회)
+      if (!autoSwitchedToTournament) {
+        const hasActive = koMatches.some(m => m.status === 'FINISHED' || m.status === 'IN_PLAY' || m.status === 'PAUSED');
+        if (hasActive) { switchTab(1); autoSwitchedToTournament = true; }
+      }
+    }
+
     const COLOR_HEX = ['#FF5252','#00BCD4','#FFD54F','#AB47BC'];
 
     let PARTICIPANTS = [];
@@ -524,6 +636,7 @@
       // 생존팀 계산 후 참가자 카드 업데이트
       calcSurvival(standingsData, allMatches);
       renderParticipants();
+      renderTournament(allMatches);
     }
 
     /* ================================================================
@@ -727,6 +840,7 @@
       }
       renderGroups();
       renderParticipants();
+      renderTournament([]);
       loadData();
     });
   </script>
