@@ -13,21 +13,16 @@
 <body>
   <div class="dot"></div>
   <script>
-    const saved = localStorage.getItem('wc2026_draft');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        if (data.participants && data.participants.length) {
+    fetch('draft-result.json?_=' + Date.now())
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.participants && data.participants.length) {
           window.location.replace('result.html');
         } else {
           window.location.replace('draft.html');
         }
-      } catch(e) {
-        window.location.replace('draft.html');
-      }
-    } else {
-      window.location.replace('draft.html');
-    }
+      })
+      .catch(() => window.location.replace('draft.html'));
   </script>
 </body>
 </html>

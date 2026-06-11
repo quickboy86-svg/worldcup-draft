@@ -294,24 +294,7 @@
     
     const COLOR_HEX = ['#FF5252','#00BCD4','#FFD54F','#AB47BC'];
 
-    // localStorage에서 드래프트 결과 읽기
     let PARTICIPANTS = [];
-    const saved = localStorage.getItem('wc2026_draft');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        PARTICIPANTS = data.participants || [];
-      } catch(e) {}
-    }
-    // 데이터 없으면 안내 메시지
-    if (!PARTICIPANTS.length) {
-      document.getElementById('participants-grid').innerHTML =
-        `<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:'IBM Plex Mono',monospace;">
-           드래프트를 먼저 진행해주세요.
-           <br/><br/>
-           <a href="draft.html" style="color:var(--gold);font-size:0.9rem;">→ 드래프트 시작하기</a>
-         </div>`;
-    }
 
     function getPickersByGroup(id) {
       return PARTICIPANTS.filter(p=>p.groups.includes(id)).map(p=>p.name);
@@ -696,15 +679,29 @@
         setTimeout(() => input.classList.remove('error'), 400);
         return;
       }
-      localStorage.removeItem('wc2026_draft');
       closeResetModal();
       window.location.href = 'draft.html';
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const resp = await fetch('draft-result.json?_=' + Date.now());
+        if (resp.ok) {
+          const data = await resp.json();
+          PARTICIPANTS = data.participants || [];
+        }
+      } catch(e) {}
+      if (!PARTICIPANTS.length) {
+        document.getElementById('participants-grid').innerHTML =
+          `<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);font-family:'IBM Plex Mono',monospace;">
+             드래프트를 먼저 진행해주세요.
+             <br/><br/>
+             <a href="draft.html" style="color:var(--gold);font-size:0.9rem;">→ 드래프트 시작하기</a>
+           </div>`;
+      }
       renderGroups();
       renderParticipants();
-      loadData(); // 개막 전이면 카운트다운, 이후면 API 호출
+      loadData();
     });
   </script>
 </body>
