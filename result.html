@@ -651,7 +651,7 @@
         const { standings, matches } = await fetchFromAPI();
         const allMatches = matches.matches || [];
 
-        applyAPIData(standings, allMatches);
+        applyAPIData(standings, matches);
 
         const live = hasLiveMatch(allMatches);
         const today = hasMatchToday(allMatches);
