@@ -53,9 +53,9 @@
     .standings-wrapper { margin-bottom: 18px; border: 1px solid rgba(240,192,64,0.2); border-radius: 10px; overflow: hidden; background: rgba(240,192,64,0.06); }
     .standings-title { padding: 12px 16px; background: rgba(240,192,64,0.18); font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold); }
     .standings-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-    .standings-table th { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; padding: 10px 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-weight: 500; }
+    .standings-table th { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; padding: 10px 6px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--muted); font-weight: 500; white-space: nowrap; }
     .standings-table th:first-child { text-align: left; padding-left: 16px; }
-    .standings-table td { padding: 8px 12px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .standings-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); }
     .standings-table td:first-child { text-align: left; padding-left: 16px; font-weight: 600; }
     .standings-table tbody tr:nth-child(1) td, .standings-table tbody tr:nth-child(2) td { color: var(--gold); }
 
@@ -600,7 +600,7 @@
               <td>${row.won}</td>
               <td>${row.draw}</td>
               <td>${row.lost}</td>
-              <td>${row.goalsFor}:${row.goalsAgainst}</td>
+              <td>${row.goalDifference > 0 ? '+' + row.goalDifference : row.goalDifference}</td>
               <td><b>${row.points}</b></td>
             </tr>`).join('');
         }
@@ -713,7 +713,7 @@
             <div class="standings-wrapper">
               <div class="standings-title">📊 조별 순위</div>
               <table class="standings-table">
-                <thead><tr><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득실</th><th>점</th></tr></thead>
+                <thead><tr><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득실</th><th>승점</th></tr></thead>
                 <tbody>
                   ${g.teams.map((t,i)=>`<tr><td>${i+1} ${t}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td><b>-</b></td></tr>`).join('')}
                 </tbody>
