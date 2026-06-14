@@ -297,6 +297,37 @@
       },
     ];
 
+    const TEAM_NAME_KO = {
+      'Algeria':'알제리','Argentina':'아르헨티나','Australia':'호주','Austria':'오스트리아',
+      'Belgium':'벨기에','Bosnia-H.':'보스니아 헤르체고비나','Bosnia-Herzegovina':'보스니아 헤르체고비나',
+      'Brazil':'브라질','Canada':'캐나다','Cape Verde':'카보베르데','Cape Verde Islands':'카보베르데',
+      'Colombia':'콜롬비아','Congo DR':'콩고민주공화국','Croatia':'크로아티아',
+      'Curaçao':'큐라소','Czechia':'체코','Ecuador':'에콰도르','Egypt':'이집트',
+      'England':'잉글랜드','France':'프랑스','Germany':'독일','Ghana':'가나',
+      'Haiti':'아이티','Iran':'이란','Iraq':'이라크','Ivory Coast':'코트디부아르',
+      'Japan':'일본','Jordan':'요르단','Korea Republic':'대한민국','South Korea':'대한민국',
+      'Mexico':'멕시코','Morocco':'모로코','Netherlands':'네덜란드','New Zealand':'뉴질랜드',
+      'Norway':'노르웨이','Panama':'파나마','Paraguay':'파라과이','Portugal':'포르투갈',
+      'Qatar':'카타르','Saudi Arabia':'사우디아라비아','Scotland':'스코틀랜드',
+      'Senegal':'세네갈','South Africa':'남아프리카','Spain':'스페인','Sweden':'스웨덴',
+      'Switzerland':'스위스','Tunisia':'튀니지','Turkey':'터키','Türkiye':'터키',
+      'USA':'미국','United States':'미국','Uruguay':'우루과이','Uzbekistan':'우즈베키스탄',
+    };
+    function toKo(team) {
+      return TEAM_NAME_KO[team?.shortName] || TEAM_NAME_KO[team?.name] || team?.shortName || team?.name || '?';
+    }
+
+    function fmtKST(utcDate) {
+      const d = new Date(new Date(utcDate).getTime() + 9 * 3600 * 1000);
+      const days = ['일','월','화','수','목','금','토'];
+      const M  = d.getUTCMonth() + 1;
+      const D  = d.getUTCDate();
+      const dw = days[d.getUTCDay()];
+      const H  = String(d.getUTCHours()).padStart(2,'0');
+      const mi = String(d.getUTCMinutes()).padStart(2,'0');
+      return `${M}/${D}(${dw}) ${H}:${mi}`;
+    }
+
     // 토너먼트 정적 대진표 (FIFA 공식 조 기준 A–L)
     const KNOCKOUT_SCHEDULE = [
       // 32강
@@ -378,11 +409,10 @@
               const ca = m.score?.currentPeriod?.away ?? '?';
               scoreHtml = `<span class="score-box live">${ch} - ${ca} 🔴</span>`;
             } else {
-              const kst = new Date(m.utcDate).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-              scoreHtml = `<span class="score-box">${kst} KST</span>`;
+              scoreHtml = `<span class="score-box">${fmtKST(m.utcDate)} KST</span>`;
             }
-            const home = m.homeTeam?.shortName || m.homeTeam?.name || '미정';
-            const away = m.awayTeam?.shortName || m.awayTeam?.name || '미정';
+            const home = toKo(m.homeTeam) || '미정';
+            const away = toKo(m.awayTeam) || '미정';
             return renderMatchCard(home, away, scoreHtml, '');
           }).join('');
         } else {
@@ -425,38 +455,24 @@
       if(card) card.classList.toggle('open');
     }
 
-    /* ================================================================
-       API 설정
-    ================================================================ */
-    const API_KEY      = '3f3a51fa9bb2436ea9a3e1108dba36d3';
-    const API_BASE     = 'https://api.football-data.org/v4';
-    const WC_START_KST = new Date('2026-06-12T04:00:00+09:00'); // 첫 경기 KST
-
     let refreshTimer = null;
 
     /* ================================================================
        시간 유틸
     ================================================================ */
-    function isAfterKickoff() {
-      return new Date() >= WC_START_KST;
-    }
-
-    // 오늘 경기가 있는지 확인 (match 데이터 기준)
     function hasMatchToday(matches) {
       const today = new Date().toDateString();
       return matches.some(m => new Date(m.utcDate).toDateString() === today);
     }
 
-    // 라이브 경기가 있는지 확인
     function hasLiveMatch(matches) {
       return matches.some(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
     }
 
-    // 다음 호출 주기 결정
     function getRefreshInterval(matches) {
-      if (hasLiveMatch(matches))   return 60 * 1000;       // 라이브: 1분
-      if (hasMatchToday(matches))  return 5 * 60 * 1000;   // 경기 당일: 5분
-      return 60 * 60 * 1000;                               // 평소: 1시간
+      if (hasLiveMatch(matches))   return 60 * 1000;
+      if (hasMatchToday(matches))  return 5 * 60 * 1000;
+      return 60 * 60 * 1000;
     }
 
     function setStatusBar(state, text) {
@@ -468,19 +484,13 @@
     }
 
     /* ================================================================
-       API 호출
+       데이터 로드 (GitHub Actions가 생성한 api-data.json 사용)
     ================================================================ */
     async function fetchFromAPI() {
-      const headers = { 'X-Auth-Token': API_KEY };
-      const [standingsRes, matchesRes] = await Promise.all([
-        fetch(`${API_BASE}/competitions/WC/standings`, { headers }),
-        fetch(`${API_BASE}/competitions/WC/matches`,   { headers }),
-      ]);
-      if (!standingsRes.ok) throw new Error(`standings API 오류 ${standingsRes.status}`);
-      if (!matchesRes.ok)   throw new Error(`matches API 오류 ${matchesRes.status}`);
-      const standings = await standingsRes.json();
-      const matches   = await matchesRes.json();
-      return { standings, matches };
+      const res = await fetch('api-data.json?_=' + Date.now());
+      if (!res.ok) throw new Error(`api-data.json 로드 실패 (${res.status})`);
+      const data = await res.json();
+      return { standings: data.standings, matches: data.matches, updatedAt: data.updatedAt };
     }
 
     /* ================================================================
@@ -500,23 +510,24 @@
       groupStandings.forEach(gs => {
         const table = gs.table || [];
         if (!table.length) return;
+        const gsGroupKey = gs.group?.replace('Group ', 'GROUP_');
 
         const groupMatches = allMatches.filter(
-          m => m.stage === 'GROUP_STAGE' && m.group === gs.group
+          m => m.stage === 'GROUP_STAGE' && m.group === gsGroupKey
         );
         const allFinished = groupMatches.length > 0 &&
           groupMatches.every(m => m.status === 'FINISHED');
 
         if (allFinished) {
-          if (table[0]) { advancedTeams.add(table[0].team.name); addPoints(table[0].team.name, 1); }
-          if (table[1]) { advancedTeams.add(table[1].team.name); addPoints(table[1].team.name, 1); }
+          if (table[0]) { const k=toKo(table[0].team); advancedTeams.add(k); addPoints(k, 1); }
+          if (table[1]) { const k=toKo(table[1].team); advancedTeams.add(k); addPoints(k, 1); }
           if (table[2]) thirdPlacers.push({
-            name: table[2].team.name,
+            name: toKo(table[2].team),
             points: table[2].points,
             gd: table[2].goalDifference,
             gf: table[2].goalsFor
           });
-          if (table[3]) eliminatedTeams.add(table[3].team.name);
+          if (table[3]) eliminatedTeams.add(toKo(table[3].team));
         }
       });
 
@@ -539,8 +550,8 @@
           .forEach(m => {
             const hs = m.score?.fullTime?.home ?? 0;
             const as = m.score?.fullTime?.away ?? 0;
-            const homeTeam = m.homeTeam?.name;
-            const awayTeam = m.awayTeam?.name;
+            const homeTeam = toKo(m.homeTeam);
+            const awayTeam = toKo(m.awayTeam);
             const pts = KO_POINTS[stage] || 0;
             if (hs > as) {
               eliminatedTeams.add(awayTeam);
@@ -575,7 +586,7 @@
 
       // groups 업데이트 (순위표 + 결과)
       groupStandings.forEach(gs => {
-        const letter = gs.group?.replace('GROUP_', '');
+        const letter = gs.group?.replace('Group ', '');
         const groupEl = document.getElementById(`gc-${letter}`);
         if (!groupEl) return;
 
@@ -584,7 +595,7 @@
         if (tbody && gs.table?.length) {
           tbody.innerHTML = gs.table.map((row, i) => `
             <tr>
-              <td>${i+1} ${row.team.shortName || row.team.name}</td>
+              <td>${i+1} ${toKo(row.team)}</td>
               <td>${row.playedGames}</td>
               <td>${row.won}</td>
               <td>${row.draw}</td>
@@ -594,9 +605,9 @@
             </tr>`).join('');
         }
 
-        // 경기 결과 업데이트
+        // 경기 결과 업데이트 (matches는 GROUP_A 형식, standings는 Group A 형식)
         const groupMatches = allMatches.filter(
-          m => m.stage === 'GROUP_STAGE' && m.group === gs.group
+          m => m.stage === 'GROUP_STAGE' && m.group === `GROUP_${letter}`
         );
         const matchesGrid = groupEl.querySelector('.matches-grid');
         if (matchesGrid && groupMatches.length) {
@@ -614,12 +625,13 @@
               const ca = m.score?.currentPeriod?.away ?? '?';
               scoreHtml = `<span class="score-box live">${ch} - ${ca} 🔴</span>`;
             } else {
-              const kst = new Date(m.utcDate).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-              scoreHtml = `<span class="score-box">${kst} KST</span>`;
+              scoreHtml = `<span class="score-box">-</span>`;
             }
-            const home = m.homeTeam?.shortName || m.homeTeam?.name || '?';
-            const away = m.awayTeam?.shortName || m.awayTeam?.name || '?';
+            const kst = fmtKST(m.utcDate);
+            const home = toKo(m.homeTeam);
+            const away = toKo(m.awayTeam);
             return `<div class="match-single">
+              <div class="match-date-time">${kst} KST</div>
               <div class="match-teams">
                 <span class="team-name-sm home">${home}</span>
                 ${scoreHtml}
@@ -645,10 +657,9 @@
     async function loadData() {
       if (refreshTimer) clearTimeout(refreshTimer);
 
-      // ── API 호출 ──
       try {
         setStatusBar('loading', '데이터 불러오는 중…');
-        const { standings, matches } = await fetchFromAPI();
+        const { standings, matches, updatedAt } = await fetchFromAPI();
         const allMatches = matches.matches || [];
 
         applyAPIData(standings, matches);
@@ -657,16 +668,18 @@
         const today = hasMatchToday(allMatches);
         const interval = getRefreshInterval(allMatches);
         const nextStr = live ? '1분' : today ? '5분' : '1시간';
-        const kst = new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' });
+        const dataKst = updatedAt
+          ? new Date(updatedAt).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' })
+          : new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' });
 
         setStatusBar(live ? 'live' : 'ok',
-          `${live ? '🔴 라이브 ' : ''}업데이트: ${kst} KST · ${nextStr}마다 자동 갱신`);
+          `${live ? '🔴 라이브 ' : ''}데이터 기준: ${dataKst} KST · ${nextStr}마다 갱신`);
 
         refreshTimer = setTimeout(loadData, interval);
 
       } catch (err) {
         console.error(err);
-        setStatusBar('error', `⚠️ API 오류: ${err.message} · 5분 후 재시도`);
+        setStatusBar('error', `⚠️ 데이터 로드 오류: ${err.message} · 5분 후 재시도`);
         refreshTimer = setTimeout(loadData, 5 * 60 * 1000);
       }
     }

@@ -1,0 +1,42 @@
+name: Update Football Data
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # 5분마다 실행
+  workflow_dispatch:          # 수동 실행 가능
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch standings & matches
+        env:
+          API_KEY: ${{ secrets.FOOTBALL_API_KEY }}
+        run: |
+          curl -sf -H "X-Auth-Token: $API_KEY" \
+            "https://api.football-data.org/v4/competitions/WC/standings" \
+            -o /tmp/standings.json
+
+          curl -sf -H "X-Auth-Token: $API_KEY" \
+            "https://api.football-data.org/v4/competitions/WC/matches" \
+            -o /tmp/matches.json
+
+          node -e "
+            const standings = JSON.parse(require('fs').readFileSync('/tmp/standings.json','utf8'));
+            const matches   = JSON.parse(require('fs').readFileSync('/tmp/matches.json','utf8'));
+            const out = { standings, matches, updatedAt: new Date().toISOString() };
+            require('fs').writeFileSync('api-data.json', JSON.stringify(out));
+          "
+
+      - name: Commit if changed
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add api-data.json
+          git diff --staged --quiet || git commit -m "data: update football data [skip ci]"
+          git push
