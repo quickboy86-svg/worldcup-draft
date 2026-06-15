@@ -2,7 +2,7 @@ name: Update Football Data
 
 on:
   schedule:
-    - cron: '0 * * * *'     # 1시간마다 실행
+    - cron: '7 * * * *'     # 1시간마다 실행
   workflow_dispatch:          # 수동 실행 가능
 
 jobs:
