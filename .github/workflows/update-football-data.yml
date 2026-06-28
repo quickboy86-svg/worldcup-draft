@@ -26,9 +26,21 @@ jobs:
             "https://api.football-data.org/v4/competitions/WC/matches" \
             -o /tmp/matches.json
 
+          # 토너먼트 경기는 전체 endpoint에서 팀 데이터가 null로 오는 경우가 있어 별도 fetch
+          curl -sf -H "X-Auth-Token: $API_KEY" \
+            "https://api.football-data.org/v4/competitions/WC/matches?stage=LAST_32" \
+            -o /tmp/last32.json
+
           node -e "
             const standings = JSON.parse(require('fs').readFileSync('/tmp/standings.json','utf8'));
             const matches   = JSON.parse(require('fs').readFileSync('/tmp/matches.json','utf8'));
+            const last32    = JSON.parse(require('fs').readFileSync('/tmp/last32.json','utf8'));
+
+            // 별도 fetch한 LAST_32 데이터로 덮어쓰기 (팀 정보가 더 최신)
+            const last32Ids = new Set(last32.matches.map(m => m.id));
+            const others = matches.matches.filter(m => !last32Ids.has(m.id));
+            matches.matches = [...others, ...last32.matches];
+
             const out = { standings, matches, updatedAt: new Date().toISOString() };
             require('fs').writeFileSync('api-data.json', JSON.stringify(out));
           "

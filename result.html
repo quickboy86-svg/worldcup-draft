@@ -314,7 +314,8 @@
       'USA':'미국','United States':'미국','Uruguay':'우루과이','Uzbekistan':'우즈베키스탄',
     };
     function toKo(team) {
-      return TEAM_NAME_KO[team?.shortName] || TEAM_NAME_KO[team?.name] || team?.shortName || team?.name || '?';
+      if (!team) return '';
+      return TEAM_NAME_KO[team.shortName] || TEAM_NAME_KO[team.name] || team.shortName || team.name || '';
     }
 
     function fmtKST(utcDate) {
@@ -376,13 +377,51 @@
     };
 
     let autoSwitchedToTournament = false;
+    let groupTeamMap = {};   // { 'A_1': '멕시코', ... }
+    let top8Third    = [];   // 3위 중 진출 상위 8팀 [{ group, name }, ...]
+
+    function buildGroupTeamMap(standingsData) {
+      groupTeamMap = {};
+      const thirdPlacers = [];
+      (standingsData.standings || []).forEach(gs => {
+        const letter = gs.group?.replace('Group ', '');
+        (gs.table || []).forEach((row, i) => {
+          groupTeamMap[`${letter}_${i + 1}`] = toKo(row.team);
+        });
+        if (gs.table?.[2]) {
+          thirdPlacers.push({
+            group: letter,
+            name: toKo(gs.table[2].team),
+            points: gs.table[2].points,
+            gd: gs.table[2].goalDifference,
+            gf: gs.table[2].goalsFor,
+          });
+        }
+      });
+      thirdPlacers.sort((a, b) => b.points - a.points || b.gd - a.gd || b.gf - a.gf);
+      top8Third = thirdPlacers.slice(0, 8);
+    }
+
+    function resolveLabel(label) {
+      // "A조 2위" → 실제 팀명
+      const simple = label.match(/^([A-L])조 (\d)위$/);
+      if (simple) return groupTeamMap[`${simple[1]}_${simple[2]}`] || label;
+
+      // "3위(A·B·C·D·F)" → 해당 조 출신 3위 중 진출 팀
+      const third = label.match(/^3위\(([A-L·]+)\)$/);
+      if (third) {
+        const groups = third[1].split('·');
+        const team = top8Third.find(t => groups.includes(t.group));
+        return team ? team.name : label;
+      }
+      return label;
+    }
 
     function renderTournament(allMatches) {
       const koMatches = allMatches.filter(m => m.stage !== 'GROUP_STAGE');
-      const useAPI = koMatches.length > 0;
       const stages = ['LAST_32','LAST_16','QUARTER_FINALS','SEMI_FINALS','THIRD_PLACE','FINAL'];
 
-      const renderMatchCard = (home, away, scoreHtml, dateStr) => `
+      const card = (home, away, scoreHtml, dateStr) => `
         <div class="match-single">
           ${dateStr ? `<div class="match-date-time">${dateStr} KST</div>` : ''}
           <div class="match-teams">
@@ -392,46 +431,123 @@
           </div>
         </div>`;
 
-      const html = stages.map(stage => {
-        let cards = '';
-        if (useAPI) {
-          const ms = koMatches.filter(m => m.stage === stage);
-          if (!ms.length) return '';
-          cards = ms.map(m => {
-            const s = m.status;
-            const h = m.score?.fullTime?.home;
-            const a = m.score?.fullTime?.away;
-            let scoreHtml;
-            if (s === 'FINISHED') {
-              scoreHtml = `<span class="score-box">${h} - ${a}</span>`;
-            } else if (s === 'IN_PLAY' || s === 'PAUSED') {
-              const ch = m.score?.currentPeriod?.home ?? '?';
-              const ca = m.score?.currentPeriod?.away ?? '?';
-              scoreHtml = `<span class="score-box live">${ch} - ${ca} 🔴</span>`;
-            } else {
-              scoreHtml = `<span class="score-box">${fmtKST(m.utcDate)} KST</span>`;
-            }
-            const home = toKo(m.homeTeam) || '미정';
-            const away = toKo(m.awayTeam) || '미정';
-            return renderMatchCard(home, away, scoreHtml, '');
-          }).join('');
-        } else {
+      // API 데이터 없으면 정적 스케줄로 표시
+      if (!koMatches.length) {
+        const html = stages.map(stage => {
           const ms = KNOCKOUT_SCHEDULE.filter(m => m.round === stage);
           if (!ms.length) return '';
-          cards = ms.map(m => renderMatchCard(m.s1, m.s2, '<span class="score-box">-</span>', m.date)).join('');
+          const cards = ms.map(m => card(
+            resolveLabel(m.s1), resolveLabel(m.s2),
+            '<span class="score-box">-</span>', m.date
+          )).join('');
+          return `<div class="ko-stage"><div class="ko-stage-title">${STAGE_LABELS[stage]}</div><div class="ko-matches-grid">${cards}</div></div>`;
+        }).join('');
+        document.getElementById('tournament-bracket').innerHTML = html;
+        return;
+      }
+
+      // 단계별 경기 날짜순 정렬
+      const byStage = {};
+      stages.forEach(s => {
+        byStage[s] = koMatches.filter(m => m.stage === s)
+          .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+      });
+
+      // 스코어 HTML 생성
+      function scoreHtml(m) {
+        if (!m) return '<span class="score-box">-</span>';
+        const s = m.status;
+        if (s === 'FINISHED') {
+          const h = m.score?.fullTime?.home, a = m.score?.fullTime?.away;
+          const pen = m.score?.penalties;
+          return `<span class="score-box">${h} - ${a}</span>` +
+            (pen ? `<span style="font-size:0.7rem;color:var(--muted)"> (PK ${pen.home}:${pen.away})</span>` : '');
         }
-        return `<div class="ko-stage">
-          <div class="ko-stage-title">${STAGE_LABELS[stage]}</div>
-          <div class="ko-matches-grid">${cards}</div>
-        </div>`;
+        if (s === 'IN_PLAY' || s === 'PAUSED') {
+          const ch = m.score?.currentPeriod?.home ?? '?';
+          const ca = m.score?.currentPeriod?.away ?? '?';
+          return `<span class="score-box live">${ch} - ${ca} 🔴</span>`;
+        }
+        return '<span class="score-box">-</span>';
+      }
+
+      // 승자/패자 계산 (팀명 문자열 기반)
+      function winner(m, h, a) {
+        if (!m || m.status !== 'FINISHED') return null;
+        const hs = m.score?.fullTime?.home ?? 0, as = m.score?.fullTime?.away ?? 0;
+        if (hs > as) return h;
+        if (as > hs) return a;
+        const pen = m.score?.penalties;
+        if (pen) return pen.home > pen.away ? h : a;
+        return null;
+      }
+      function loser(m, h, a) {
+        const w = winner(m, h, a);
+        return w ? (w === h ? a : h) : null;
+      }
+
+      // match id → { home, away } 팀명 맵
+      const teams = {};
+
+      // LAST_32: API 팀명 or 순위표 기반 resolveLabel
+      byStage['LAST_32'].forEach((m, i) => {
+        const ks = KNOCKOUT_SCHEDULE.filter(k => k.round === 'LAST_32')[i] || {};
+        teams[m.id] = {
+          home: toKo(m.homeTeam) || resolveLabel(ks.s1 || '') || '미정',
+          away: toKo(m.awayTeam) || resolveLabel(ks.s2 || '') || '미정',
+        };
+      });
+
+      // LAST_16, QF, SF: 이전 라운드 승자 쌍으로 계산
+      function computeFromPrev(stage, prevStage) {
+        const prev = byStage[prevStage];
+        byStage[stage].forEach((m, i) => {
+          const p1 = prev[i * 2], p2 = prev[i * 2 + 1];
+          const t1 = p1 ? teams[p1.id] : null;
+          const t2 = p2 ? teams[p2.id] : null;
+          teams[m.id] = {
+            home: toKo(m.homeTeam) || (t1 ? winner(p1, t1.home, t1.away) : null) || '미정',
+            away: toKo(m.awayTeam) || (t2 ? winner(p2, t2.home, t2.away) : null) || '미정',
+          };
+        });
+      }
+      computeFromPrev('LAST_16',        'LAST_32');
+      computeFromPrev('QUARTER_FINALS', 'LAST_16');
+      computeFromPrev('SEMI_FINALS',    'QUARTER_FINALS');
+
+      // 결승 / 3·4위전: SF 승자·패자
+      const sf = byStage['SEMI_FINALS'];
+      const sf1 = sf[0], sf2 = sf[1];
+      const t1 = sf1 ? teams[sf1.id] : null, t2 = sf2 ? teams[sf2.id] : null;
+      byStage['FINAL'].forEach(m => {
+        teams[m.id] = {
+          home: toKo(m.homeTeam) || (t1 ? winner(sf1, t1.home, t1.away) : null) || '미정',
+          away: toKo(m.awayTeam) || (t2 ? winner(sf2, t2.home, t2.away) : null) || '미정',
+        };
+      });
+      byStage['THIRD_PLACE'].forEach(m => {
+        teams[m.id] = {
+          home: toKo(m.homeTeam) || (t1 ? loser(sf1, t1.home, t1.away) : null) || '미정',
+          away: toKo(m.awayTeam) || (t2 ? loser(sf2, t2.home, t2.away) : null) || '미정',
+        };
+      });
+
+      // 렌더링
+      const html = stages.map(stage => {
+        const ms = byStage[stage];
+        if (!ms?.length) return '';
+        const cards = ms.map(m => {
+          const t = teams[m.id] || { home: '미정', away: '미정' };
+          return card(t.home, t.away, scoreHtml(m), fmtKST(m.utcDate));
+        }).join('');
+        return `<div class="ko-stage"><div class="ko-stage-title">${STAGE_LABELS[stage]}</div><div class="ko-matches-grid">${cards}</div></div>`;
       }).join('');
 
       document.getElementById('tournament-bracket').innerHTML = html;
 
-      // 토너먼트가 시작됐으면 탭 자동 전환 (최초 1회)
-      if (!autoSwitchedToTournament) {
-        const hasActive = koMatches.some(m => m.status === 'FINISHED' || m.status === 'IN_PLAY' || m.status === 'PAUSED');
-        if (hasActive) { switchTab(1); autoSwitchedToTournament = true; }
+      if (!autoSwitchedToTournament && koMatches.length > 0) {
+        switchTab(1);
+        autoSwitchedToTournament = true;
       }
     }
 
@@ -646,6 +762,7 @@
       });
 
       // 생존팀 계산 후 참가자 카드 업데이트
+      buildGroupTeamMap(standingsData);
       calcSurvival(standingsData, allMatches);
       renderParticipants();
       renderTournament(allMatches);
