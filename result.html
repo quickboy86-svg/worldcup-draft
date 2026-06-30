@@ -402,6 +402,15 @@
       top8Third = thirdPlacers.slice(0, 8);
     }
 
+    function getPickersForTeam(teamName) {
+      if (!teamName || teamName === '미정') return [];
+      const group = GROUPS.find(g => g.teams.includes(teamName));
+      if (!group) return [];
+      return PARTICIPANTS
+        .map((p, i) => ({ name: p.name, ci: p.colorIdx ?? i, groups: p.groups }))
+        .filter(p => p.groups.includes(group.id));
+    }
+
     function resolveLabel(label) {
       // "A조 2위" → 실제 팀명
       const simple = label.match(/^([A-L])조 (\d)위$/);
@@ -421,13 +430,18 @@
       const koMatches = allMatches.filter(m => m.stage !== 'GROUP_STAGE');
       const stages = ['LAST_32','LAST_16','QUARTER_FINALS','SEMI_FINALS','THIRD_PLACE','FINAL'];
 
+      const pickerBadges = (teamName, side = 'right') =>
+        getPickersForTeam(teamName)
+          .map(p => `<span class="picker-badge p${p.ci}" style="font-size:0.6rem;padding:2px 7px;${side==='left'?'margin-right':'margin-left'}:4px;vertical-align:middle;">${p.name}</span>`)
+          .join('');
+
       const card = (home, away, scoreHtml, dateStr) => `
         <div class="match-single">
           ${dateStr ? `<div class="match-date-time">${dateStr} KST</div>` : ''}
           <div class="match-teams">
-            <span class="team-name-sm home">${home}</span>
+            <span class="team-name-sm home">${pickerBadges(home,'left')}${home}</span>
             ${scoreHtml}
-            <span class="team-name-sm away">${away}</span>
+            <span class="team-name-sm away">${away}${pickerBadges(away,'right')}</span>
           </div>
         </div>`;
 
