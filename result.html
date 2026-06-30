@@ -212,6 +212,7 @@
       <div class="pred-chips-area" id="pred-unassigned-chips" style="margin-bottom:12px;"></div>
       <div class="modal-error" id="pred-modal-error"></div>
       <div class="modal-btns">
+        <button class="modal-btn cancel" onclick="deletePrediction()" id="pred-delete-btn" style="display:none;border-color:rgba(255,82,82,0.4);color:#FF5252;">삭제</button>
         <button class="modal-btn cancel" onclick="closePredModal()">취소</button>
         <button class="modal-btn confirm" onclick="savePrediction()">저장</button>
       </div>
@@ -542,6 +543,7 @@
           : null;
       });
       document.getElementById('pred-modal-error').textContent = '';
+      document.getElementById('pred-delete-btn').style.display = existing ? '' : 'none';
       renderPredModalChips();
       document.getElementById('pred-modal').classList.add('open');
     }
@@ -581,6 +583,18 @@
       SPECIAL_PREDICTIONS[predModalKey] = { home, away };
       savePredictionsToStorage(); // localStorage 백업
       savePredictionsToGithub(); // GitHub 저장 (비동기, 백그라운드)
+      closePredModal();
+      if (lastAllMatches.length) {
+        calcPredictionBonus(lastAllMatches);
+        renderParticipants();
+        renderTournament(lastAllMatches);
+      }
+    }
+
+    function deletePrediction() {
+      delete SPECIAL_PREDICTIONS[predModalKey];
+      savePredictionsToStorage();
+      savePredictionsToGithub();
       closePredModal();
       if (lastAllMatches.length) {
         calcPredictionBonus(lastAllMatches);
