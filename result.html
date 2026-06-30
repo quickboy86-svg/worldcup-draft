@@ -467,12 +467,21 @@
           .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
       });
 
-      // 스코어 HTML 생성
+      // 스코어 HTML 생성 (승부차기 경기는 fullTime에 PK골 포함돼 있으므로 regularTime+extraTime 사용)
       function scoreHtml(m) {
         if (!m) return '<span class="score-box">-</span>';
         const s = m.status;
         if (s === 'FINISHED') {
-          const h = m.score?.fullTime?.home, a = m.score?.fullTime?.away;
+          const isPK = m.score?.duration === 'PENALTY_SHOOTOUT';
+          let h, a;
+          if (isPK) {
+            const rt = m.score.regularTime, et = m.score.extraTime;
+            h = (rt?.home ?? 0) + (et?.home ?? 0);
+            a = (rt?.away ?? 0) + (et?.away ?? 0);
+          } else {
+            h = m.score?.fullTime?.home;
+            a = m.score?.fullTime?.away;
+          }
           const pen = m.score?.penalties;
           return `<span class="score-box">${h} - ${a}</span>` +
             (pen ? `<span style="font-size:0.7rem;color:var(--muted)"> (PK ${pen.home}:${pen.away})</span>` : '');
