@@ -90,6 +90,24 @@
     .ko-stage.collapsed .ko-toggle { transform: rotate(180deg); }
     .ko-stage.collapsed .ko-matches-grid { display: none; }
     .ko-matches-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .prediction-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); gap: 4px; }
+    .pred-label { font-size: 0.6rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+    .pred-side { display: flex; gap: 3px; flex-wrap: wrap; }
+    .pred-badge-correct .picker-badge { box-shadow: 0 0 6px currentColor; }
+    .pred-badge-wrong .picker-badge { opacity: 0.3; }
+    .pred-enter-btn { cursor: pointer; font-size: 0.7rem; color: var(--muted); padding: 3px 10px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 6px; width: 100%; text-align: center; margin-top: 8px; }
+    .pred-enter-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .pred-edit-btn { cursor: pointer; font-size: 0.62rem; color: var(--muted); padding: 1px 6px; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; white-space: nowrap; flex-shrink: 0; }
+    .pred-edit-btn:hover { border-color: var(--gold); color: var(--gold); }
+    /* 승부예측 모달 */
+    .pred-modal-box { background: var(--card); border: 2px solid var(--gold); border-radius: 16px; padding: 24px 20px; width: min(400px, 95vw); }
+    .pred-modal-subtitle { font-size: 0.82rem; color: var(--muted); margin-bottom: 16px; text-align: center; }
+    .pred-modal-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .pred-col-label { font-size: 0.7rem; font-weight: 700; color: var(--gold); font-family: 'Outfit', sans-serif; margin-bottom: 6px; text-align: center; }
+    .pred-chips-area { min-height: 46px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 8px 6px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; }
+    .pred-chips-area .picker-badge { cursor: pointer; }
+    .pred-chips-area .picker-badge:hover { filter: brightness(1.2); }
+    .pred-unassigned-label { font-size: 0.68rem; color: var(--muted); text-align: center; margin-bottom: 4px; }
     @media (max-width: 640px) { .ko-matches-grid { grid-template-columns: 1fr; } }
 
     /* 조별 팀 목록 */
@@ -133,6 +151,7 @@
     <h1>2026 FIFA 월드컵<br/><span>일정 & 조 예측 게임</span></h1>
     <div style="margin-top:16px;display:flex;align-items:center;justify-content:center;gap:20px;">
       <a href="draft.html" style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;color:var(--gold);opacity:.7;text-decoration:none;">← 드래프트 다시하기</a>
+      <button onclick="openTokenModal()" id="token-btn" style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;background:transparent;border:1px solid rgba(255,255,255,0.2);color:var(--muted);border-radius:8px;padding:5px 14px;cursor:pointer;">🔗 GitHub</button>
       <button onclick="openResetModal()" style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;background:transparent;border:1px solid rgba(255,82,82,0.4);color:#FF5252;border-radius:8px;padding:5px 14px;cursor:pointer;opacity:.7;">초기화</button>
     </div>
   </header>
@@ -162,6 +181,43 @@
   </main>
 
   <!-- 초기화 모달 -->
+  <div class="modal-overlay" id="token-modal" onclick="if(event.target===this)closeTokenModal()">
+    <div class="modal-box">
+      <div class="modal-title">GitHub 토큰 설정</div>
+      <div class="modal-desc">예측 데이터를 GitHub에 저장합니다.<br/>토큰은 이 기기에만 저장됩니다.</div>
+      <input class="modal-input" id="token-input" type="password" placeholder="ghp_..." style="letter-spacing:0.05em;" onkeydown="if(event.key==='Enter')saveToken()"/>
+      <div class="modal-error" id="token-error"></div>
+      <div class="modal-btns">
+        <button class="modal-btn cancel" onclick="closeTokenModal()">취소</button>
+        <button class="modal-btn confirm" onclick="saveToken()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="pred-modal" onclick="handlePredOverlayClick(event)">
+    <div class="pred-modal-box">
+      <div class="modal-title" id="pred-modal-title">승부예측</div>
+      <div class="pred-modal-subtitle" id="pred-modal-subtitle"></div>
+      <div class="pred-modal-cols">
+        <div>
+          <div class="pred-col-label" id="pred-home-label">홈팀 이김</div>
+          <div class="pred-chips-area" id="pred-home-chips"></div>
+        </div>
+        <div>
+          <div class="pred-col-label" id="pred-away-label">원정팀 이김</div>
+          <div class="pred-chips-area" id="pred-away-chips"></div>
+        </div>
+      </div>
+      <div class="pred-unassigned-label">미배정 · 클릭하면 홈팀 → 원정팀 → 미배정 순으로 이동</div>
+      <div class="pred-chips-area" id="pred-unassigned-chips" style="margin-bottom:12px;"></div>
+      <div class="modal-error" id="pred-modal-error"></div>
+      <div class="modal-btns">
+        <button class="modal-btn cancel" onclick="closePredModal()">취소</button>
+        <button class="modal-btn confirm" onclick="savePrediction()">저장</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="reset-modal" onclick="handleOverlayClick(event)">
     <div class="modal-box">
       <div class="modal-title">드래프트 초기화</div>
@@ -384,6 +440,163 @@
     let groupTeamMap = {};   // { 'A_1': '멕시코', ... }
     let top8Third    = [];   // 3위 중 진출 상위 8팀 [{ group, name }, ...]
 
+    // 준결승·결승 승부예측 (UI에서 입력, GitHub predictions.json에 저장)
+    const SPECIAL_PREDICTIONS = {};
+    const PRED_POINTS = { SF1: 5, SF2: 5, THIRD: 5, FINAL: 10 };
+    const PRED_STORAGE_KEY = 'wc_draft_predictions';
+    const GH_TOKEN_KEY = 'wc_gh_token';
+    const GH_REPO = 'quickboy86-svg/worldcup-draft';
+    const GH_FILE = 'predictions.json';
+
+    function getGhToken() { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
+
+    function updateTokenBtn() {
+      const btn = document.getElementById('token-btn');
+      if (btn) btn.style.color = getGhToken() ? '#4ade80' : 'var(--muted)';
+    }
+
+    function openTokenModal() {
+      document.getElementById('token-input').value = getGhToken();
+      document.getElementById('token-error').textContent = '';
+      document.getElementById('token-modal').classList.add('open');
+      setTimeout(() => document.getElementById('token-input').focus(), 50);
+    }
+    function closeTokenModal() { document.getElementById('token-modal').classList.remove('open'); }
+    function saveToken() {
+      const t = document.getElementById('token-input').value.trim();
+      localStorage.setItem(GH_TOKEN_KEY, t);
+      updateTokenBtn();
+      closeTokenModal();
+    }
+
+    async function fetchPredictionsFromGithub() {
+      try {
+        const resp = await fetch(`${GH_FILE}?_=` + Date.now());
+        if (resp.ok) {
+          const data = await resp.json();
+          Object.assign(SPECIAL_PREDICTIONS, data);
+        }
+      } catch(e) {}
+    }
+
+    async function savePredictionsToGithub() {
+      const token = getGhToken();
+      if (!token) { savePredictionsToStorage(); return; }
+      try {
+        const getResp = await fetch(
+          `https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`,
+          { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' } }
+        );
+        let sha;
+        if (getResp.ok) sha = (await getResp.json()).sha;
+
+        const content = btoa(unescape(encodeURIComponent(JSON.stringify(SPECIAL_PREDICTIONS, null, 2))));
+        const putResp = await fetch(
+          `https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'update: predictions', content, ...(sha ? { sha } : {}) }),
+          }
+        );
+        if (!putResp.ok) throw new Error(putResp.status);
+      } catch(e) {
+        console.error('GitHub 저장 실패, localStorage에만 저장:', e);
+        savePredictionsToStorage();
+      }
+    }
+
+    let lastAllMatches = [];
+    let predModalKey = null;
+    let predState = {}; // name → 'home' | 'away' | null
+
+    function loadPredictionsFromStorage() {
+      try {
+        const saved = localStorage.getItem(PRED_STORAGE_KEY);
+        if (saved) Object.assign(SPECIAL_PREDICTIONS, JSON.parse(saved));
+      } catch(e) {}
+    }
+
+    function savePredictionsToStorage() {
+      try {
+        localStorage.setItem(PRED_STORAGE_KEY, JSON.stringify(SPECIAL_PREDICTIONS));
+      } catch(e) {}
+    }
+
+    function openPredModal(key, homeName, awayName) {
+      predModalKey = key;
+      const labelMap = { SF1: '준결승 1', SF2: '준결승 2', THIRD: '3·4위전', FINAL: '결승' };
+      document.getElementById('pred-modal-title').textContent = `${labelMap[key]} 승부예측`;
+      document.getElementById('pred-modal-subtitle').textContent = `${homeName}  vs  ${awayName}`;
+      document.getElementById('pred-home-label').textContent = `${homeName === '미정' ? '홈팀' : homeName} 이김`;
+      document.getElementById('pred-away-label').textContent = `${awayName === '미정' ? '원정팀' : awayName} 이김`;
+      const existing = SPECIAL_PREDICTIONS[key];
+      predState = {};
+      PARTICIPANTS.forEach(p => {
+        predState[p.name] = existing
+          ? (existing.home.includes(p.name) ? 'home' : existing.away.includes(p.name) ? 'away' : null)
+          : null;
+      });
+      document.getElementById('pred-modal-error').textContent = '';
+      renderPredModalChips();
+      document.getElementById('pred-modal').classList.add('open');
+    }
+
+    function renderPredModalChips() {
+      const mkChip = name => {
+        const p = PARTICIPANTS.find(pp => pp.name === name);
+        const ci = p ? (p.colorIdx ?? PARTICIPANTS.indexOf(p)) : 0;
+        return `<span class="picker-badge p${ci}" style="font-size:0.82rem;padding:5px 12px;" onclick="cyclePredChip('${name}')">${name}</span>`;
+      };
+      const home = Object.entries(predState).filter(([,s]) => s === 'home').map(([n]) => n);
+      const away = Object.entries(predState).filter(([,s]) => s === 'away').map(([n]) => n);
+      const unset = Object.entries(predState).filter(([,s]) => !s).map(([n]) => n);
+      document.getElementById('pred-home-chips').innerHTML = home.map(mkChip).join('') || '<span style="font-size:0.72rem;color:var(--muted)">없음</span>';
+      document.getElementById('pred-away-chips').innerHTML = away.map(mkChip).join('') || '<span style="font-size:0.72rem;color:var(--muted)">없음</span>';
+      document.getElementById('pred-unassigned-chips').innerHTML = unset.map(mkChip).join('') || '<span style="font-size:0.72rem;color:#4ade80">✓ 모두 배정됨</span>';
+    }
+
+    function cyclePredChip(name) {
+      if (predState[name] !== null) {
+        predState[name] = null; // 배정된 이름 클릭 → 미배정으로
+      } else {
+        const homeCount = Object.values(predState).filter(s => s === 'home').length;
+        predState[name] = homeCount < 2 ? 'home' : 'away'; // 홈 2명 차면 원정으로
+      }
+      document.getElementById('pred-modal-error').textContent = '';
+      renderPredModalChips();
+    }
+
+    function savePrediction() {
+      const home = Object.entries(predState).filter(([,s]) => s === 'home').map(([n]) => n);
+      const away = Object.entries(predState).filter(([,s]) => s === 'away').map(([n]) => n);
+      if (home.length !== 2 || away.length !== 2) {
+        document.getElementById('pred-modal-error').textContent = '각 팀 정확히 2명씩 배정해주세요.';
+        return;
+      }
+      SPECIAL_PREDICTIONS[predModalKey] = { home, away };
+      savePredictionsToStorage(); // localStorage 백업
+      savePredictionsToGithub(); // GitHub 저장 (비동기, 백그라운드)
+      closePredModal();
+      if (lastAllMatches.length) {
+        calcPredictionBonus(lastAllMatches);
+        renderParticipants();
+        renderTournament(lastAllMatches);
+      }
+    }
+
+    function handlePredOverlayClick(e) {
+      if (e.target === document.getElementById('pred-modal')) closePredModal();
+    }
+
+    function closePredModal() {
+      document.getElementById('pred-modal').classList.remove('open');
+    }
+
     function buildGroupTeamMap(standingsData) {
       groupTeamMap = {};
       const thirdPlacers = [];
@@ -439,7 +652,7 @@
           .map(p => `<span class="picker-badge p${p.ci}" style="font-size:0.6rem;padding:2px 7px;${side==='left'?'margin-right':'margin-left'}:4px;vertical-align:middle;">${p.name}</span>`)
           .join('');
 
-      const card = (home, away, scoreHtml, dateStr) => `
+      const card = (home, away, scoreHtml, dateStr, predRow = '') => `
         <div class="match-single">
           ${dateStr ? `<div class="match-date-time">${dateStr} KST</div>` : ''}
           <div class="match-teams">
@@ -447,7 +660,47 @@
             ${scoreHtml}
             <span class="team-name-sm away">${away}${pickerBadges(away,'right')}</span>
           </div>
+          ${predRow}
         </div>`;
+
+      const makePredRow = (key, m, homeName, awayName) => {
+        const pred = SPECIAL_PREDICTIONS[key];
+        const pts = PRED_POINTS[key];
+        const isFinished = m?.status === 'FINISHED';
+        const hn = homeName || '미정', an = awayName || '미정';
+
+        if (!pred) {
+          return `<div class="prediction-row" style="justify-content:center;">
+            <span class="pred-enter-btn" onclick="openPredModal('${key}','${hn}','${an}')">✏️ 승부예측 입력 (+${pts}점)</span>
+          </div>`;
+        }
+
+        const hs = m?.score?.fullTime?.home ?? 0;
+        const as = m?.score?.fullTime?.away ?? 0;
+        const pen = m?.score?.penalties;
+        let homeWon = null;
+        if (isFinished) {
+          if (hs > as) homeWon = true;
+          else if (as > hs) homeWon = false;
+          else if (pen) homeWon = pen.home > pen.away;
+        }
+        const mkBadge = (name, won) => {
+          const p = PARTICIPANTS.find(pp => pp.name === name);
+          const ci = p ? (p.colorIdx ?? PARTICIPANTS.indexOf(p)) : 0;
+          const cls = won === true ? 'pred-badge-correct' : won === false ? 'pred-badge-wrong' : '';
+          return `<span class="${cls}"><span class="picker-badge p${ci}" style="font-size:0.6rem;padding:2px 7px;">${name}</span></span>`;
+        };
+        const homeSide = pred.home.map(n => mkBadge(n, homeWon === null ? null : homeWon)).join('');
+        const awaySide = pred.away.map(n => mkBadge(n, homeWon === null ? null : !homeWon)).join('');
+        const editBtn = !isFinished
+          ? `<span class="pred-edit-btn" onclick="openPredModal('${key}','${hn}','${an}')">✏️</span>`
+          : '';
+        return `<div class="prediction-row">
+          <div class="pred-side">${homeSide}</div>
+          <span class="pred-label">승부예측${editBtn}</span>
+          <div class="pred-side">${awaySide}</div>
+        </div>`;
+      };
 
       const titleHtml = (stage, collapsed) =>
         `<div class="ko-stage-title" onclick="this.closest('.ko-stage').classList.toggle('collapsed')">
@@ -577,9 +830,13 @@
         if (!ms?.length) return '';
         const stageIdx = stagesWithMatches.indexOf(stage);
         const collapsed = stageIdx < activeIdx ? 'collapsed' : '';
-        const cards = ms.map(m => {
+        const cards = ms.map((m, idx) => {
           const t = teams[m.id] || { home: '미정', away: '미정' };
-          return card(t.home, t.away, scoreHtml(m), fmtKST(m.utcDate));
+          let predKey = null;
+          if (stage === 'SEMI_FINALS') predKey = `SF${idx + 1}`;
+          else if (stage === 'THIRD_PLACE') predKey = 'THIRD';
+          else if (stage === 'FINAL') predKey = 'FINAL';
+          return card(t.home, t.away, scoreHtml(m), fmtKST(m.utcDate), predKey ? makePredRow(predKey, m, t.home, t.away) : '');
         }).join('');
         return `<div class="ko-stage ${collapsed}">${titleHtml(stage)}<div class="ko-matches-grid">${cards}</div></div>`;
       }).join('');
@@ -731,6 +988,7 @@
         if (!g) return;
         g.teams.forEach(t => { score += teamRoundPoints.get(t) || 0; });
       });
+      score += participantBonusPoints.get(p.name) || 0;
       return score;
     }
 
@@ -803,8 +1061,10 @@
       });
 
       // 생존팀 계산 후 참가자 카드 업데이트
+      lastAllMatches = allMatches;
       buildGroupTeamMap(standingsData);
       calcSurvival(standingsData, allMatches);
+      calcPredictionBonus(allMatches);
       renderParticipants();
       renderTournament(allMatches);
     }
@@ -895,12 +1155,42 @@
        - 비어있으면 아직 시작 전 → 모든 팀 pending 상태
        API 연동 시 이 두 Set을 채워주면 자동으로 반영됨
     ================================================================ */
-    const eliminatedTeams  = new Set();
-    const advancedTeams    = new Set();
-    const teamRoundPoints  = new Map(); // teamName → 누적 점수
+    const eliminatedTeams       = new Set();
+    const advancedTeams         = new Set();
+    const teamRoundPoints       = new Map(); // teamName → 누적 점수
+    const participantBonusPoints = new Map(); // participantName → 승부예측 보너스
 
     function addPoints(teamName, pts) {
       teamRoundPoints.set(teamName, (teamRoundPoints.get(teamName) || 0) + pts);
+    }
+
+    function calcPredictionBonus(allMatches) {
+      participantBonusPoints.clear();
+      if (!Object.keys(SPECIAL_PREDICTIONS).length) return;
+
+      const sfMatches = allMatches
+        .filter(m => m.stage === 'SEMI_FINALS')
+        .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+      const finalMatches = allMatches.filter(m => m.stage === 'FINAL');
+      const thirdMatches = allMatches.filter(m => m.stage === 'THIRD_PLACE');
+      const matchMap = { SF1: sfMatches[0], SF2: sfMatches[1], THIRD: thirdMatches[0], FINAL: finalMatches[0] };
+
+      Object.entries(SPECIAL_PREDICTIONS).forEach(([key, pred]) => {
+        const m = matchMap[key];
+        if (!m || m.status !== 'FINISHED') return;
+        const hs = m.score?.fullTime?.home ?? 0;
+        const as = m.score?.fullTime?.away ?? 0;
+        const pen = m.score?.penalties;
+        let homeWon;
+        if (hs > as) homeWon = true;
+        else if (as > hs) homeWon = false;
+        else if (pen) homeWon = pen.home > pen.away;
+        else return;
+        const winners = homeWon ? pred.home : pred.away;
+        winners.forEach(name => {
+          participantBonusPoints.set(name, (participantBonusPoints.get(name) || 0) + PRED_POINTS[key]);
+        });
+      });
     }
 
     function getTeamStatus(teamName) {
@@ -994,6 +1284,9 @@
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
+      updateTokenBtn();
+      await fetchPredictionsFromGithub(); // GitHub predictions.json 우선 로드
+      loadPredictionsFromStorage();       // localStorage로 병합 (오프라인 백업)
       try {
         const resp = await fetch('draft-result.json?_=' + Date.now());
         if (resp.ok) {
